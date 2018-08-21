@@ -20,7 +20,7 @@ tags:
 基于这样的背景，一种未来的趋势是出更多的硬件驱动将在用户空间中实现，而这种趋势似乎正在慢慢成为现实。例如Intel的DPDK相关的技术，以及RDMA和XDP，都是此类思路的具体实践。在本文中，我们将尝试用[Rust][rust-zh_CN]语言来实现一个极其简单的Intel ixgbe 10G网络控制器驱动，并在编写测试程序测试其基础性能。
 
 
-需要特别说明的是，本文的目的之一是探寻Rust语言编写驱动的优缺点，所以对于具体的网络接口的硬件细节关注较少，所以实现基本上是在[C语言版本的驱动emmericp/ixy][upstream-code]的基础上进行Rust移植。本文的相关代码请移步[Gitbub仓库][code]。
+需要特别说明的是，本文的目的之一是探寻Rust语言编写驱动的优缺点，所以对于具体的网络接口的硬件细节关注较少，所以实现基本上是在[C语言版本的驱动emmericp/ixy][upstream-code]的基础上进行Rust移植。本文的相关代码请移步[Github仓库][code]。
 
 
 ## 为什么用Rust？
@@ -240,7 +240,7 @@ TX: 9998.990842343424 Mbit/s 14.879450658249143 Mpps
 
 但是，当前的实现中还有许多值得改进的地方，比如：
 
-1. 在Rust中，通常不应该有自己实现的内存分配器，更不应该有显式地的`free`类型的操作。不过因为我们使用了Hugepage来处理底层内存管理，所以这部分必须要自己实现，一种更优雅的做法是实现Rust中的[`alloc::alloc::Alloc`][alloc-trait]类型的trait，以及相应的函数实现，以便于与其它的库很好的兼容，实现内存的自动管理。
+* 在Rust中，通常不应该有自己实现的内存分配器，更不应该有显式地的`free`类型的操作。不过因为我们使用了Hugepage来处理底层内存管理，所以这部分必须要自己实现，一种更优雅的做法是实现Rust中的[`alloc::alloc::Alloc`][alloc-trait]类型的trait，以及相应的函数实现，以便于与其它的库很好的兼容，实现内存的自动管理。
 
 ```rust
 trait Alloc {
@@ -249,7 +249,7 @@ trait Alloc {
 }
 ```
 
-2. 代码中的有些地方并不符合Rust的风格，例如在`DeviceInfo`中，`rx_queues: Vec<RxQueue>`项已经包含了队列的长度信息，不应该再添加重复的`num_rx_queues: u32`。
+* 代码中的有些地方并不符合Rust的风格，例如在`DeviceInfo`中，`rx_queues: Vec<RxQueue>`项已经包含了队列的长度信息，不应该再添加重复的`num_rx_queues: u32`。
 
 以上问题在以后优化中将持续改进。
 
@@ -261,5 +261,5 @@ trait Alloc {
 [rust-zh_CN]: https://www.rust-lang.org/zh-CN/
 [C10K]: http://www.kegel.com/c10k.html
 [C10M]: http://c10m.robertgraham.com/p/manifesto.html
-[macro-example]: https://play.rust-lang.org/?gist=3f495eb69e51bc24d9576ba9b8de68a7&version=stable&mode=debug&edition=2015
+[macro-example]: https://bit.ly/2LgAAtD
 [amdahl-law]: https://zh.wikipedia.org/wiki/%E9%98%BF%E5%A7%86%E8%BE%BE%E5%B0%94%E5%AE%9A%E5%BE%8B
