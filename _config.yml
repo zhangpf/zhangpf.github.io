@@ -81,4 +81,7 @@ deploy:
   type: git
   repo: https://github.com/zhangpf/zhangpf.github.io
   branch: master
+
+
+disqus_shortname: zhangpf
   
