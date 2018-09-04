@@ -1,7 +1,8 @@
 ---
 title: 使用Windows的UMS(User-Mode Scheduling)实现轻量级线程
 date: 2018-08-27 21:04:23
-tags:
+tags: [云计算, 并发, Windows, UMS]
+categories: 中文
 ---
 
 

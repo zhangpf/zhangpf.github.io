@@ -1,7 +1,8 @@
 ---
 title: 利用Capnproto优化RPC组合操作
 date: 2018-08-13 08:44:34
-tags:
+tags: [云计算, Capnproto, RPC]
+categories: 中文
 ---
 
 <!-- *原文地址： [http://blog.zhangpf.com/2018/08/13/using-capnproto-for-operation-pipeline/](http://blog.zhangpf.com/2018/08/13/using-capnproto-for-operation-pipeline/)* -->

@@ -1,7 +1,8 @@
 ---
 title: 使用Rust编写用户态驱动程序
 date: 2018-08-19 22:06:46
-tags:
+tags: [云计算, 驱动, Rust, Kernel bypass, ixgbe]
+categories: 中文
 ---
 
 
