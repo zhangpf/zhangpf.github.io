@@ -82,6 +82,13 @@ deploy:
   repo: https://github.com/zhangpf/zhangpf.github.io
   branch: master
 
-
-# disqus_shortname: zhangpf
-  
+marked:
+  gfm: true
+  pedantic: false
+  sanitize: false
+  tables: true
+  breaks: false
+  smartLists: true
+  smartypants: true
+  modifyAnchors: ''
+  autolink: true
