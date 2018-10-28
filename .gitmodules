@@ -1,0 +1,3 @@
+[submodule ".\\source\\_posts\\midori"]
+	path = .\\source\\_posts\\midori
+	url = git@github.com:zhangpf/midori-blog-zh-CN.git
