@@ -360,7 +360,7 @@ han: false
 
 # Disqus
 disqus:
-  enable: true
+  enable: false
   shortname: zhangpf
   count: true
 
