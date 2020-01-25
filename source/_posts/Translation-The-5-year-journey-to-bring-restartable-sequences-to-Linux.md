@@ -90,7 +90,7 @@ With this design, the optimistic case (where the thread isn't interrupted) is ex
 
 更详细地说，当前rseq临界区是由`struct rseq_cs`对象所描述，该对象被`struct rseq`对象所引用。下面用如下的图来说明它们的关系和结构体的字段。
 
-{% asset_img rseq-arm32-getcpu.png rseq_cs结构体和字段描述(来自于 www.efficios.com) %} 
+{% asset_img restartable-sequences-diagram.png rseq_cs结构体和字段描述(来自于 www.efficios.com) %} 
 
 <!-- The start and end of the restartable sequence are denoted by the start_ip and post_commit_ip (which points to the instruction after the commit instruction), and the abort_ip points to the first instruction of the abort handler. -->
 
