@@ -381,7 +381,7 @@ valine:
   enable: trye
   appid:  iew5TMrdThxWQbOailKTyCQD-gzGzoHsz # your leancloud application appid
   appkey: E98qgMa0ynS9XawTqsPPg9kq # your leancloud application appkey
-  notify: false # mail notifier , https://github.com/xCss/Valine/wiki
+  notify: true # mail notifier , https://github.com/xCss/Valine/wiki
   verify: true # Verification code
   placeholder: 欢迎留下宝贵的评论 # comment box placeholder
   avatar: mm # gravatar style
