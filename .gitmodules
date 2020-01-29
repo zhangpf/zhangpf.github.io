@@ -1,3 +1,7 @@
 [submodule "source/_posts/midori"]
 	path = source/_posts/midori
 	url = https://github.com/zhangpf/midori-blog-zh-CN.git
+
+[submodule "source/_posts/paper-reading"]
+	path = source/_posts/paper-reading
+	url = https://github.com/zhangpf/paper-reading.git
