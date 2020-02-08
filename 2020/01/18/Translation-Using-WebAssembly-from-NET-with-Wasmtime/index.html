@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+
+
+
+
+<html class="theme-next mist" lang="">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="WebAssembly,Rust,Wasmtime,.NET," />
+
+
+
+
+
+  <link rel="alternate" href="/atom.xml" title="Wisdom from zhangpf" type="application/atom+xml" />
+
+
+
+
+
+
+<meta name="description" content="概述 来自字节码联盟（Bytecode Alliance）的WebAssembly（以下简称wasm）运行时——Wasmtime，最近添加了针对.NET Core的早期预览版本API，开发者可以在他们的.NET程序中使用该API直接编程加载和运行wasm代码。 那么问题来了，.NET Core已经是跨平台的运行时，为什么.NET开发者还需关注wasm？ 如果你是.NET开发者，那么这里有几个让你对">
+<meta name="keywords" content="WebAssembly,Rust,Wasmtime,.NET">
+<meta property="og:type" content="article">
+<meta property="og:title" content="【译文】在.NET上通过Wasmtime使用WebAssembly">
+<meta property="og:url" content="https://blog.zhangpf.com/2020/01/18/Translation-Using-WebAssembly-from-NET-with-Wasmtime/index.html">
+<meta property="og:site_name" content="Wisdom from zhangpf">
+<meta property="og:description" content="概述 来自字节码联盟（Bytecode Alliance）的WebAssembly（以下简称wasm）运行时——Wasmtime，最近添加了针对.NET Core的早期预览版本API，开发者可以在他们的.NET程序中使用该API直接编程加载和运行wasm代码。 那么问题来了，.NET Core已经是跨平台的运行时，为什么.NET开发者还需关注wasm？ 如果你是.NET开发者，那么这里有几个让你对">
+<meta property="og:locale" content="default">
+<meta property="og:updated_time" content="2020-01-29T02:19:30.147Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="【译文】在.NET上通过Wasmtime使用WebAssembly">
+<meta name="twitter:description" content="概述 来自字节码联盟（Bytecode Alliance）的WebAssembly（以下简称wasm）运行时——Wasmtime，最近添加了针对.NET Core的早期预览版本API，开发者可以在他们的.NET程序中使用该API直接编程加载和运行wasm代码。 那么问题来了，.NET Core已经是跨平台的运行时，为什么.NET开发者还需关注wasm？ 如果你是.NET开发者，那么这里有几个让你对">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"always","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":false,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://blog.zhangpf.com/2020/01/18/Translation-Using-WebAssembly-from-NET-with-Wasmtime/"/>
+
+
+
+
+
+  <title>【译文】在.NET上通过Wasmtime使用WebAssembly | Wisdom from zhangpf</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Wisdom from zhangpf</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description">express clear viewpoint with plain words</h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+        <li class="menu-item menu-item-search">
+          
+            <a href="javascript:;" class="popup-trigger">
+          
+            
+              <i class="menu-item-icon fa fa-search fa-fw"></i> <br />
+            
+            Search
+          </a>
+        </li>
+      
+    </ul>
+  
+
+  
+    <div class="site-search">
+      
+  <div class="popup search-popup local-search-popup">
+  <div class="local-search-header clearfix">
+    <span class="search-icon">
+      <i class="fa fa-search"></i>
+    </span>
+    <span class="popup-btn-close">
+      <i class="fa fa-times-circle"></i>
+    </span>
+    <div class="local-search-input-wrapper">
+      <input autocomplete="off"
+             placeholder="Searching..." spellcheck="false"
+             type="text" id="local-search-input">
+    </div>
+  </div>
+  <div id="local-search-result"></div>
+</div>
+
+
+
+    </div>
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://blog.zhangpf.com/2020/01/18/Translation-Using-WebAssembly-from-NET-with-Wasmtime/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhangpf">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Wisdom from zhangpf">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">【译文】在.NET上通过Wasmtime使用WebAssembly</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-01-18T16:06:49+08:00">
+                2020-01-18
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/中文/" itemprop="url" rel="index">
+                    <span itemprop="name">中文</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2020/01/18/Translation-Using-WebAssembly-from-NET-with-Wasmtime/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2020/01/18/Translation-Using-WebAssembly-from-NET-with-Wasmtime/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+
+          
+            <span class="post-meta-divider">|</span>
+            <span class="page-pv"><i class="fa fa-file-o"></i>
+            <span class="busuanzi-value" id="busuanzi_value_page_pv" ></span>
+            </span>
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="概述"><a href="#概述" class="headerlink" title="概述"></a>概述</h2><!-- Wasmtime, the WebAssembly runtime from the Bytecode Alliance, recently added an early preview of an API for .NET Core, Microsoft’s free, open-source, and cross-platform application runtime. This API enables developers to programmatically load and execute WebAssembly code directly from their .NET programs.
+
+.NET Core is already a cross-platform runtime, so why should .NET developers pay any attention to WebAssembly?
+
+There are several reasons to be excited about WebAssembly if you’re a .NET developer, such as sharing the same executable code across platforms, being able to securely isolate untrusted code, and having a seamless interop experience with the upcoming WebAssembly interface types proposal. -->
+<p>来自<a href="https://bytecodealliance.org/articles/announcing-the-bytecode-alliance" target="_blank" rel="noopener">字节码联盟（Bytecode Alliance）</a>的WebAssembly（以下简称wasm）运行时——<a href="https://github.com/bytecodealliance/wasmtime/" target="_blank" rel="noopener">Wasmtime</a>，最近添加了针对.NET Core的早期预览版本API，开发者可以在他们的.NET程序中使用该API直接编程加载和运行wasm代码。</p>
+<p>那么问题来了，.NET Core已经是跨平台的运行时，为什么.NET开发者还需关注wasm？</p>
+<p>如果你是.NET开发者，那么这里有几个让你对wasm感到兴奋的地方，这包括<strong>在所有平台上使用同一份可执行代码</strong>，<strong>安全地隔离不可信代码</strong>，以及<strong>通过即将来临的wasm接口类型提案（WebAssembly interface type proposal）来获得无缝的互操作体验</strong>等。</p>
+<!-- # Share more code across platforms -->
+<h3 id="在平台间共享更多的代码"><a href="#在平台间共享更多的代码" class="headerlink" title="在平台间共享更多的代码"></a>在平台间共享更多的代码</h3><!-- .NET assemblies can already be built for cross-platform use, but using a native library (for example, a library written in C or Rust) can be difficult because it requires native interop and distributing a platform-specific build of the library for each supported platform.
+
+However, if the native library were compiled to WebAssembly, the same WebAssembly module could be used across many different platforms and programming environments, including .NET; this would simplify the distribution of the library and the applications that depend on it. -->
+<p>.NET编译生成二进制代码已经可以跨平台使用，但使用本地库（例如，通过C或Rust写成的库）却依然比较困难，因为它需要原生的互操作，并且为每一个所支持的平台提供单独的构建。</p>
+<p>然而，如果C或者Rust库被编译成wasm模块，那么同一个模块可以被不同的平台和编程环境所使用，其中也包括.NET环境，这将大大简化库和使用这些库的应用的分发。</p>
+<!-- ## Securely isolate untrusted code -->
+<h3 id="安全地隔离不可信代码"><a href="#安全地隔离不可信代码" class="headerlink" title="安全地隔离不可信代码"></a>安全地隔离不可信代码</h3><!-- The .NET Framework attempted to sandbox untrusted code with technologies such as Code Access Security and Application Domains, but ultimately these failed to properly isolate untrusted code. As a result, Microsoft deprecated their use for sandboxing and ultimately removed them from .NET Core.
+
+Have you ever wanted to load untrusted plugins in your application but couldn’t figure out a way to prevent the plugin from invoking arbitrary system calls or from directly reading your process’ memory? You can do this with WebAssembly because it was designed for the web, an environment where untrusted code executes every time you visit a website.
+
+A WebAssembly module can only call the external functions it explicitly imports from a host environment, and may only access a region of memory given to it by the host. We can leverage this design to sandbox code in a .NET program too! -->
+<p>.NET曾设计使用代码访问安全性（Code Access Security）和应用程序域（Application Domain）技术来沙箱隔离不可信代码，但最终这些技术都未能有效地对不可信代码进行隔离。结果微软最后放弃了沙箱化，并最终将这些技术从.NET Core中移除。</p>
+<p>可是，你是否曾经在你的应用中加载不可信插件时，却找不到一种方法来防止插件进行任意系统调用或者直接读取进程的内存。现在，可以通过wasm来达到该目的，因为wasm最初是为任意性很强的Web环境所设计，在Web环境中，每当用户访问网站时，不可信代码都无时不刻在执行。</p>
+<!-- ## Improved interoperability with interface types -->
+<h3 id="通过接口类型改进互操作性"><a href="#通过接口类型改进互操作性" class="headerlink" title="通过接口类型改进互操作性"></a>通过接口类型改进互操作性</h3><!-- 
+The WebAssembly interface types proposal introduces a way for WebAssembly to better integrate with programming languages by reducing the amount of glue code that is necessary to pass more complex types back and forth between the hosting application and a WebAssembly module.
+
+When support for interface types is eventually implemented by the Wasmtime for .NET API, it will enable a seamless experience for exchanging complex types between WebAssembly and .NET. -->
+<p>wasm的接口类型提案引入了一种新方法，该方法可以减少在托管应用程序和wasm模块之间来回传递更复杂类型所需的粘合代码。新方法的目的是为了wasm更好地与编程语言所集成。</p>
+<p>当接口类型最终被wasmtime为.NET所支持后，它将为在wasm和.NET之间交换复杂类型提供无缝的编程体验。 </p>
+<h2 id="深入研究通过-NET使用wasm"><a href="#深入研究通过-NET使用wasm" class="headerlink" title="深入研究通过.NET使用wasm"></a>深入研究通过.NET使用wasm</h2><!-- In this article we’ll dive into using a Rust library compiled to WebAssembly from .NET with the Wasmtime for .NET API, so it will help to be a little familiar with the C# programming language to follow along.
+
+The API described here is fairly low-level. That means that there is quite a bit of glue code required for conceptually simple operations, such as passing or receiving a string value.
+
+In the future we’ll also provide a higher-level API based on WebAssembly interface types which will significantly reduce the code required for the same operations. Using that API will enable interacting with a WebAssembly module from .NET as easily as you would a .NET assembly.
+
+Note also that the API is still under active development and will change in backwards-incompatible ways. We’re aiming to stabilize it as we stabilize Wasmtime itself.
+
+If you’re reading this and you aren’t a .NET developer, that’s okay! Check out the Wasmtime Demos repository for corresponding implementations for Python, Node.js, and Rust too! -->
+<p>接下来，我们将深入研究，如何使用Wasmtime API在.NET中加载和使用编译为wasm模块的Rust库，因此对C#编程语言稍微熟悉会有所帮助。</p>
+<p>这里描述的API相当底层，它意味着，在概念上简单的操作（例如传递或接受字符串）需要大量的粘合代码。</p>
+<p>将来，我们还将基于<a href="https://hacks.mozilla.org/2019/08/webassembly-interface-types/" target="_blank" rel="noopener">wasm接口类型</a>提供更高级别的API，这将大大减少相同操作所需的代码。使用该API将使你可以像正常.NET程序一样轻松地在.NET中与wasm模块之间进行交互。</p>
+<p>还请注意的是，该API仍在开发中，因为我们的目标是保持Wasmtime本身的稳定性，并且可能以向后不兼容的方式发生改变。</p>
+<p>如果你不是.NET开发者，那也没问题，请查看<a href="https://github.com/bytecodealliance/wasmtime-demos" target="_blank" rel="noopener">Wasmtime的demo代码库</a>，以获取相应的Python，Node.js和Rust等版本的实现。</p>
+<h2 id="创建wasm模块"><a href="#创建wasm模块" class="headerlink" title="创建wasm模块"></a>创建wasm模块</h2><!-- We’ll start by building a Rust library that can be used to render Markdown to HTML. However, instead of compiling the Rust library for your processor architecture, we’ll be compiling it to WebAssembly so we can use it from .NET.
+
+You don’t need to be familiar with the Rust programming language to follow along, but it will help to have a Rust toolchain installed if you want to build the WebAssembly module. See the homepage for Rustup for an easy way to install a Rust toolchain.
+
+Additionally, we’re going to use cargo-wasi, a command that bootstraps everything we need for Rust to target WebAssembly: -->
+<p>我们将从构建Rust库（<a href="https://github.com/raphlinus/pulldown-cmark" target="_blank" rel="noopener"><code>pulldown_cmark</code></a>）开始，该库可用于将<a href="https://commonmark.org/" target="_blank" rel="noopener">markdown</a>文档渲染为HTML。前面已经提到，我们不会将Rust库编译为特定目标体系结构，而是将其编译为wasm格式，使得它们可以在.NET使用。</p>
+<p>你并不需要对<a href="https://www.rust-lang.org/" target="_blank" rel="noopener">Rust编程语言</a>熟悉，但是如果是构建wasm模块，那么安装相应的Rust工具链是有用的。有关安装Rust工具链的简便方法，请参考<a href="https://rustup.rs/" target="_blank" rel="noopener">Rustup</a>主页。</p>
+<p>此外，我们将使用<a href="https://github.com/bytecodealliance/cargo-wasi" target="_blank" rel="noopener">cargo-wasi</a>，该命令可创建将Rust编译wasm所需的基础代码和编译环境：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cargo install cargo-wasi</span><br></pre></td></tr></table></figure>
+<p>然后，克隆Wasmtime的demo代码库：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">git <span class="built_in">clone</span> https://github.com/bytecodealliance/wasmtime-demos.git</span><br><span class="line"><span class="built_in">cd</span> wasmtime-demos</span><br></pre></td></tr></table></figure>
+<!-- 
+This repository includes the markdown directory that contains a Rust library. The library wraps a well-known Rust crate that can render Markdown as HTML. (Note for .NET developers: a crate is like a NuGet package, in a way).
+
+Let’s build the markdown WebAssembly module using cargo-wasi: -->
+<p>该代码库包括markdown文件目录和相应的Rust代码，其中Rust代码只是封装了<code>pulldown_cmark</code></p>
+<p>而后使用<code>cargo-wasi</code>构建markdown的wasm模块：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="built_in">cd</span> markdown</span><br><span class="line">cargo wasi build --release</span><br></pre></td></tr></table></figure>
+<p>此时，<code>target/wasm32-wasi/release</code>目录中应有编译后的<code>markdown.wasm</code>文件。</p>
+<p>如果你对所实现的rust代码感兴趣，请参看<code>src/lib.rs</code>文件，它包含如下内容：</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">use</span> pulldown_cmark::&#123;html, Parser&#125;;</span><br><span class="line"><span class="keyword">use</span> wasm_bindgen::prelude::*;</span><br><span class="line"></span><br><span class="line"><span class="meta">#[wasm_bindgen]</span></span><br><span class="line"><span class="keyword">pub</span> <span class="function"><span class="keyword">fn</span> <span class="title">render</span></span>(input: &amp;<span class="built_in">str</span>) -&gt; <span class="built_in">String</span> &#123;</span><br><span class="line">    <span class="keyword">let</span> parser = Parser::new(input);</span><br><span class="line">    <span class="keyword">let</span> <span class="keyword">mut</span> html_output = <span class="built_in">String</span>::new();</span><br><span class="line">    html::push_html(&amp;<span class="keyword">mut</span> html_output, parser);</span><br><span class="line">    <span class="keyword">return</span> html_output;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>该rust代码的功能是export函数<code>render</code>，该函数的功能是将markdown格式字符串作为输入，处理并返回渲染后的HTML格式字符串。</p>
+<p>让我们稍微暂停一下，简单地了解这里所做的事情：我们使用了一个现有的Rust crate，并用几行代码将其封装，其功能作为wasm函数进行了export，然后将其编译为可在.NET加载的wasm模块，而这里我们不用再考虑该模块将在什么平台（或体系结构）上运行，很酷啊兄弟，不是么？！</p>
+<h3 id="检视wasm模块内部"><a href="#检视wasm模块内部" class="headerlink" title="检视wasm模块内部"></a>检视wasm模块内部</h3><p>现在我们已经有了可使用的wasm模块，那么host需要为它需提供怎样的环境，它又为host提供了怎样的功能？</p>
+<p>为了弄清楚这一点，让我们使用<a href="https://github.com/WebAssembly/wabt" target="_blank" rel="noopener">WebAssembly Binary Toolkit</a>里的<code>wasm2wat</code>工具，将模块反汇编成可读文本的表示形式：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">wasm2wat markdown.wasm --<span class="built_in">enable</span>-multi-value &gt; markdown.wat</span><br></pre></td></tr></table></figure>
+<p><em>注意：<code>--enable-multi-value</code>选项提供对多个返回值函数的支持，这对于反编译<code>markdown.wasm</code>模块是必须的。</em></p>
+<!--### What the module needs from a host-->
+<h3 id="模块需要host所提供的环境支持"><a href="#模块需要host所提供的环境支持" class="headerlink" title="模块需要host所提供的环境支持"></a>模块需要host所提供的环境支持</h3><p>模块的<code>import</code>方式定义了host应为模块提供哪些功能，下面是<code>markdown</code>模块的<code>import</code>段：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">(import &quot;wasi_unstable&quot; &quot;fd_write&quot; (func $fd_write (param i32 i32 i32 i32) (result i32)))</span><br><span class="line">(import &quot;wasi_unstable&quot; &quot;random_get&quot; (func $random_get (param i32 i32) (result i32)))</span><br></pre></td></tr></table></figure>
+<p>该段申明告诉我们该模块需要host提供两个函数的接口：<code>fd_write</code>和<code>random_get</code>。这两个函数实际上是具有明确行为定义的<a href="https://github.com/WebAssembly/WASI" target="_blank" rel="noopener">WebAssembly System Interface</a>（简称WASI）函数：<code>fd_write</code>用于将数据写入特定的文件描述符中，<code>random_get</code>将用随机数据填充某个缓冲区。</p>
+<p>很快我们将为.NET的host环境实现这些函数，但更重要的是要明白<strong>模块只能从host调用这些函数</strong>，host可以决定如何实现这些函数甚至是是否实现这些函数。</p>
+<h3 id="模块为主机提供了怎样的功能"><a href="#模块为主机提供了怎样的功能" class="headerlink" title="模块为主机提供了怎样的功能"></a>模块为主机提供了怎样的功能</h3><p>模块的export段定义了它为host提供的功能函数，以下<code>markdown</code>模块的export段：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">(export &quot;memory&quot; (memory 0))</span><br><span class="line">(export &quot;render&quot; (func $render_multivalue_shim))</span><br><span class="line">(export &quot;__wbindgen_malloc&quot; (func $__wbindgen_malloc))</span><br><span class="line">(export &quot;__wbindgen_realloc&quot; (func $__wbindgen_realloc))</span><br><span class="line">(export &quot;__wbindgen_free&quot; (func $__wbindgen_free))</span><br><span class="line"></span><br><span class="line">...</span><br><span class="line"></span><br><span class="line">(func $render_multivalue_shim (param i32 i32) (result i32 i32) ...)</span><br><span class="line">(func $__wbindgen_malloc (param i32) (result i32) ...)</span><br><span class="line">(func $__wbindgen_realloc (param i32 i32 i32) (result i32) ...)</span><br><span class="line">(func $__wbindgen_free (param i32 i32) ...)</span><br></pre></td></tr></table></figure>
+<p>首先，模块export了它自身的<code>memory</code>内存段，wasm内存是模块可访问的线性地址空间，<strong>并且是模块可以读写的唯一内存区域</strong>。由于该模块无法直接访问host地址空间的任何其他区域内存，因此这段export的内存就是host与wasm模块交换数据的区域。</p>
+<p>其次，模块export了我们用Rust实现的<code>render</code>函数，但是这里有个问题是，为什么在前面Rust实现的函数只有一个参数和一个返回值，而wasm对应的函数有两个参数和两个返回值？</p>
+<p>在Rust中，当编译为wasm时，字符串切片类型（<code>&amp;str</code>）和字符串（<code>String</code>）均表示为初地址和长度（以字节为单位）对的形式。因此，wasm版本的函数由于更底层，便直接采用了这种底层的初地址和长度对形式来表示参数和返回值。值得注意的是，这里的初地址表示的是export内存中的字节偏移量。</p>
+<p>那么我们回头看之前的代码，由于Rust代码返回一个<code>String</code>，它是一个<em>owned</em>自有类型，因此<code>render</code>的调用者负责释放包含渲染字符串的返回内存值。</p>
+<p>在.NET的host实现过程中，我们将逐一讨论其余的export项。</p>
+<h2 id="创建-NET工程"><a href="#创建-NET工程" class="headerlink" title="创建.NET工程"></a>创建.NET工程</h2><p>我们使用<a href="https://dotnet.microsoft.com/download" target="_blank" rel="noopener">.NET Core SDK</a>来创建.NET Core工程，所以请确保系统已安装了<strong>3.0或更高版本</strong>的.NET Core SDK。</p>
+<p>为工程创建一个新的目录：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">mkdir WasmtimeDemo</span><br><span class="line">cd WasmtimeDemo</span><br></pre></td></tr></table></figure>
+<p>接下来，在目录中创建.NET Core命令行工程：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dotnet new console</span><br></pre></td></tr></table></figure>
+<p>最后，添加<a href="https://www.nuget.org/packages/Wasmtime" target="_blank" rel="noopener">Wasmtime NuGet包</a>的依赖关系：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dotnet add package wasmtime --version 0.8.0-preview2</span><br></pre></td></tr></table></figure>
+<p>现在，我们已做好使用Wasmtime的.NET API来加载并执行markdown模块的准备。</p>
+<h2 id="为wasm导入-NET代码"><a href="#为wasm导入-NET代码" class="headerlink" title="为wasm导入.NET代码"></a>为wasm导入.NET代码</h2><p>为wasm导入.NET实现的函数，跟.NET中实现<a href="https://peterhuene.github.io/wasmtime.net/api/Wasmtime.IHost.html" target="_blank" rel="noopener">IHost</a>接口一样简单，只需一个公有的[Instance]属性来表示和host绑定的wasm模块。</p>
+<p><a href="https://peterhuene.github.io/wasmtime.net/api/Wasmtime.ImportAttribute.html" target="_blank" rel="noopener">Import</a>属性被用于标记函数和域，正如wasm模块中的import那样。</p>
+<p>我们之前提到，模块需要从host环境中import两个函数：<code>fd_write</code>和<code>random_get</code>，所以接下来对这两个函数进行实现：</p>
+<p>在工程目录中创建一个名为<code>Host.cs</code>的文件，并添加如下的代码：</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">using</span> System.Security.Cryptography;</span><br><span class="line"><span class="keyword">using</span> Wasmtime;</span><br><span class="line"></span><br><span class="line"><span class="keyword">namespace</span> <span class="title">WasmtimeDemo</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">class</span> <span class="title">Host</span> : <span class="title">IHost</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="comment">// These are from the current WASI proposal.</span></span><br><span class="line">        <span class="keyword">const</span> <span class="keyword">int</span> WASI_ERRNO_NOTSUP = <span class="number">58</span>;</span><br><span class="line">        <span class="keyword">const</span> <span class="keyword">int</span> WASI_ERRNO_SUCCESS = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">public</span> Instance Instance &#123; <span class="keyword">get</span>; <span class="keyword">set</span>; &#125;</span><br><span class="line"></span><br><span class="line">        [<span class="meta">Import(<span class="meta-string">"fd_write"</span>, Module = <span class="meta-string">"wasi_unstable"</span>)</span>]</span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">int</span> <span class="title">WriteFile</span>(<span class="params"><span class="keyword">int</span> fd, <span class="keyword">int</span> iovs, <span class="keyword">int</span> iovs_len, <span class="keyword">int</span> nwritten</span>)</span></span><br><span class="line"><span class="function">        </span>&#123;</span><br><span class="line">            <span class="keyword">return</span> WASI_ERRNO_NOTSUP;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        [<span class="meta">Import(<span class="meta-string">"random_get"</span>, Module = <span class="meta-string">"wasi_unstable"</span>)</span>]</span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">int</span> <span class="title">GetRandomBytes</span>(<span class="params"><span class="keyword">int</span> buf, <span class="keyword">int</span> buf_len</span>)</span></span><br><span class="line"><span class="function">        </span>&#123;</span><br><span class="line">            _random.GetBytes(Instance.Externs.Memories[<span class="number">0</span>].Span.Slice(buf, buf_len));</span><br><span class="line">            <span class="keyword">return</span> WASI_ERRNO_SUCCESS;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">private</span> RNGCryptoServiceProvider _random = <span class="keyword">new</span> RNGCryptoServiceProvider();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><code>fd_write</code>实现仅仅只是简单地返回一个错误，表示不支持该操作。它可被模块用于将错误代码写入<code>stderr</code>中，而在我们的demo中则永远不会真正调用。</p>
+<p><code>random_get</code>的实现使用的是随机字节填充请求缓冲区的方式。它将代表整个模块export内存的<a href="https://peterhuene.github.io/wasmtime.net/api/Wasmtime.Memory.html#Wasmtime_Memory_Span" target="_blank" rel="noopener"><code>Span</code></a>切片，以便.NET的实现可以<em>直接</em>写入请求的缓冲区，而无需进行任何的中间复制操作。Rust标准库中<code>HashMap</code>的实现正是通过调用<code>random_get</code>函数来实现。</p>
+<p>以上就是使用Wasmtime的API将.NET函数import到wasm模块的全部步骤。不过，在加载wasm模块并在.NET使用它们之前，我们需要讨论如何将字符串作为参数，将其从.NET的host传递到<code>render</code>函数中。</p>
+<!--# Being a good host-->
+<h2 id="良好的宿主环境"><a href="#良好的宿主环境" class="headerlink" title="良好的宿主环境"></a>良好的宿主环境</h2><!--Based on the exports of the module, we know it exports a memory. From the host’s perspective, think of a WebAssembly module’s exported memory as being granted access to the address space of a foreign process, even though the module shares the same process of the host itself.-->
+<p>基于模块化的export，我们知道它export了一块<em>memory</em>区域。从host的角度上来看，即使该模块与host本身共享相同的进程内存，也可以将wasm模块的export内存授权为对外部进程地址空间的权限。</p>
+<!--If you randomly write data to a foreign address space, Bad Things Happen™ because it’s quite easy to corrupt the state of the other program and cause undefined behavior, such as a crash or the total protonic reversal of the universe. So how can a host pass data to the WebAssembly module in a safe manner?-->
+<!--Internally the Rust program uses a memory allocator to manage its memory. So, for .NET to be a good host to the WebAssembly module, it must also use the same memory allocator when allocating and freeing memory accessible to the WebAssembly module.-->
+<!--Thankfully, wasm-bindgen, used by the Rust program to export itself as WebAssembly, also exported two functions for that purpose: __wbindgen_malloc and __wbindgen_free. These two functions are essentially malloc and free from C, except __wbindgen_free needs the size of the previous allocation in addition to the memory address.-->
+<!--With this in mind, let us write a simple wrapper for these exported functions in C# so we can easily allocate and free memory accessible to the WebAssembly module.-->
+<!--Create a file named Allocator.cs in the project directory and add the following content:-->
+<p>如果你将数据随机写入外部地址空间，则会发生意想不到的后果，因为它很容易对其他程序的状态造成破坏并引起未定义的行为，例如程序崩溃或字节反转。那么主机应如何以安全的方式将数据传递到wasm模块中呢？</p>
+<p>Rust程序在内部使用内存分配器来管理其内存，因此，为了使.NET成为wasm模块良好的宿主，在分配和释放wasm模块可访问的内存时，必须使用相同的内存分配器。</p>
+<p>值得庆幸的是，Rust程序用来将自身导出为wasm模块的<a href="https://rustwasm.github.io/docs/wasm-bindgen" target="_blank" rel="noopener">wasm-bindgen</a>工具也为此export了两个函数：<code>__wbindgen_malloc</code>和<code>__wbindgen_free</code>。除了<code>__wbindgen_free</code>需要知道内存地址和之前分配的内存大小之外，这两个函数本质上和C语言的<code>malloc</code>和<code>free</code>函数一样。</p>
+<p>考虑到这一点，让我们为C#编写这些export函数的一个简单的封装，以便我们可以轻松分配和释放wasm模块可访问的内存大小。因此，在工程目录中创建一个名为<code>Allocator.cs</code>的文件，并添加如下代码：</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">using</span> System;</span><br><span class="line"><span class="keyword">using</span> System.Collections.Generic;</span><br><span class="line"><span class="keyword">using</span> System.Linq;</span><br><span class="line"><span class="keyword">using</span> System.Text;</span><br><span class="line"><span class="keyword">using</span> Wasmtime.Externs;</span><br><span class="line"></span><br><span class="line"><span class="keyword">namespace</span> <span class="title">WasmtimeDemo</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">class</span> <span class="title">Allocator</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="title">Allocator</span>(<span class="params">ExternMemory memory, IReadOnlyList&lt;ExternFunction&gt; functions</span>)</span></span><br><span class="line"><span class="function">        </span>&#123;</span><br><span class="line">            _memory = memory ??</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> ArgumentNullException(<span class="keyword">nameof</span>(memory));</span><br><span class="line"></span><br><span class="line">            _malloc = functions</span><br><span class="line">                .Where(f =&gt; f.Name == <span class="string">"__wbindgen_malloc"</span>)</span><br><span class="line">                .SingleOrDefault() ??</span><br><span class="line">                    <span class="keyword">throw</span> <span class="keyword">new</span> ArgumentException(<span class="string">"Unable to resolve malloc function."</span>);</span><br><span class="line"></span><br><span class="line">            _free = functions</span><br><span class="line">                .Where(f =&gt; f.Name == <span class="string">"__wbindgen_free"</span>)</span><br><span class="line">                .SingleOrDefault() ??</span><br><span class="line">                    <span class="keyword">throw</span> <span class="keyword">new</span> ArgumentException(<span class="string">"Unable to resolve free function."</span>);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">int</span> <span class="title">Allocate</span>(<span class="params"><span class="keyword">int</span> length</span>)</span></span><br><span class="line"><span class="function">        </span>&#123;</span><br><span class="line">            <span class="keyword">return</span> (<span class="keyword">int</span>)_malloc.Invoke(length);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">public</span> (<span class="keyword">int</span> Address, <span class="keyword">int</span> Length) AllocateString(<span class="keyword">string</span> str)</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">var</span> length = Encoding.UTF8.GetByteCount(str);</span><br><span class="line"></span><br><span class="line">            <span class="keyword">int</span> addr = Allocate(length);</span><br><span class="line"></span><br><span class="line">            _memory.WriteString(addr, str);</span><br><span class="line"></span><br><span class="line">            <span class="keyword">return</span> (addr, length);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">Free</span>(<span class="params"><span class="keyword">int</span> address, <span class="keyword">int</span> length</span>)</span></span><br><span class="line"><span class="function">        </span>&#123;</span><br><span class="line">            _free.Invoke(address, length);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">private</span> ExternMemory _memory;</span><br><span class="line">        <span class="keyword">private</span> ExternFunction _malloc;</span><br><span class="line">        <span class="keyword">private</span> ExternFunction _free;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这段代码虽然看起来很复杂，但它所做的就是从模块中按名称查找所需的export函数，并将它们封装在易于使用的接口中。我们将使用该辅助<code>Allocator</code>类将输入字符串分配给export的<code>render</code>函数。</p>
+<p>现在，我们准备开始渲染markdown。</p>
+<h2 id="渲染markdown"><a href="#渲染markdown" class="headerlink" title="渲染markdown"></a>渲染markdown</h2><p>在工程目录中打开<code>Program.cs</code>，并将其替换为以下内容：</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">using</span> System;</span><br><span class="line"><span class="keyword">using</span> System.Linq;</span><br><span class="line"><span class="keyword">using</span> Wasmtime;</span><br><span class="line"></span><br><span class="line"><span class="keyword">namespace</span> <span class="title">WasmtimeDemo</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">class</span> <span class="title">Program</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">const</span> <span class="keyword">string</span> MarkdownSource = </span><br><span class="line">            <span class="string">"# Hello, `.NET`! Welcome to **WebAssembly** with [Wasmtime](https://wasmtime.dev)!"</span>;</span><br><span class="line"></span><br><span class="line">        <span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">Main</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function">        </span>&#123;</span><br><span class="line">            <span class="keyword">using</span> <span class="keyword">var</span> engine = <span class="keyword">new</span> Engine();</span><br><span class="line"></span><br><span class="line">            <span class="keyword">using</span> <span class="keyword">var</span> store = engine.CreateStore();</span><br><span class="line"></span><br><span class="line">            <span class="keyword">using</span> <span class="keyword">var</span> module = store.CreateModule(<span class="string">"markdown.wasm"</span>);</span><br><span class="line"></span><br><span class="line">            <span class="keyword">using</span> <span class="keyword">var</span> instance = module.Instantiate(<span class="keyword">new</span> Host());</span><br><span class="line"></span><br><span class="line">            <span class="keyword">var</span> memory = instance.Externs.Memories.SingleOrDefault() ??</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> InvalidOperationException(<span class="string">"Module must export a memory."</span>);</span><br><span class="line"></span><br><span class="line">            <span class="keyword">var</span> allocator = <span class="keyword">new</span> Allocator(memory, instance.Externs.Functions);</span><br><span class="line"></span><br><span class="line">            (<span class="keyword">var</span> inputAddress, <span class="keyword">var</span> inputLength) = allocator.AllocateString(MarkdownSource);</span><br><span class="line"></span><br><span class="line">            <span class="keyword">try</span></span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">object</span>[] results = (instance <span class="keyword">as</span> <span class="keyword">dynamic</span>).render(inputAddress, inputLength);</span><br><span class="line"></span><br><span class="line">                <span class="keyword">var</span> outputAddress = (<span class="keyword">int</span>)results[<span class="number">0</span>];</span><br><span class="line">                <span class="keyword">var</span> outputLength = (<span class="keyword">int</span>)results[<span class="number">1</span>];</span><br><span class="line"></span><br><span class="line">                <span class="keyword">try</span></span><br><span class="line">                &#123;</span><br><span class="line">                    Console.WriteLine(memory.ReadString(outputAddress, outputLength));</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">finally</span></span><br><span class="line">                &#123;</span><br><span class="line">                    allocator.Free(outputAddress, outputLength);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">finally</span></span><br><span class="line">            &#123;</span><br><span class="line">                allocator.Free(inputAddress, inputLength);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>让我们一步步地看看这段代码做了哪些工作：</p>
+<ol>
+<li><p>创建<code>Engine</code>对象，该<code>Engine</code>类代表了Wasmtime运行时本身。运行时支持从.NET加载和执行wasm模块；</p>
+</li>
+<li><p>然后创建<code>Store</code>对象，这个类是存放所有wasm对象（例如模块及其实例）的地方。<code>Engine</code>中可以有多个<code>Store</code>，但它们的关联对象不能相互影响；</p>
+</li>
+<li><p>接下来，基于<code>markdown.wasm</code>文件创建<code>Module</code>对象。<code>Module</code>代表wasm模块本身的数据，例如它import和export的数据。一个模块可以具有一个或多个<em>实例</em>，实例化是wasm模块的<em>运行时</em>的表示形式。它将模块的wasm指令编译为当前<em>CPU体系结构</em>的指令，分配模块可访问的实际内存，以及绑定从主机import的函数；</p>
+</li>
+<li><p>使用之前实现的<code>Host</code>类来实例化模块，绑定作为import项的.NET函数；</p>
+</li>
+<li><p>查找由模块export的<code>memory</code>段；</p>
+</li>
+<li><p>创建一个分配器，然后为需要渲染的markdown内容分配一个字符串；</p>
+</li>
+<li><p>以输入字符串为参数，通过将实例转换为<code>dynamic</code>的方式调用<code>render</code>函数。这本是C#的一项特性，在运行时动态绑定函数，可以将其简单地视为搜索并调用export后的<code>render</code>函数的快捷方式；</p>
+</li>
+<li><p>通过从wasm模块export的内存中读取返回的字符串，输出渲染后的HTML；</p>
+</li>
+<li>最后，释放分配的输入字符串和Rust提供给我们的返回字符串的内存。</li>
+</ol>
+<p>以上就是代码所实现的步骤，然后继续运行该代码。</p>
+<h2 id="运行代码"><a href="#运行代码" class="headerlink" title="运行代码"></a>运行代码</h2><!--
+Before we can run the program, we need to copy markdown.wasm to the project directory, as this is where we’ll run the program from. You can find the markdown.wasm file in the target/wasm32-wasi/release directory from where you built it.
+
+From the Program.cs source above, we see that the program hard-coded some Markdown to render:
+-->
+<p>在运行程序之前，需要将<code>markdown.wasm</code>复制到工程目录中，因为它是我们实际运行程序的地方。可以在构建目录的<code>target/wasm32-wasi/release</code>位置中找到该<code>markdown.wasm</code>文件。</p>
+<p>从上面的<code>Program.cs</code>源码中，我们看到该程序对一些markdown进行了硬编码的渲染：</p>
+<figure class="highlight markdown"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="section"># Hello, `.NET`! Welcome to **WebAssembly** with [Wasmtime](https://wasmtime.dev)!</span></span><br></pre></td></tr></table></figure>
+<p>运行程序，将其渲染为HTM格式L：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">dotnet run</span><br></pre></td></tr></table></figure>
+<p>如果一切正常，应该会出现下面的结果：</p>
+<figure class="highlight html"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="tag">&lt;<span class="name">h1</span>&gt;</span>Hello, <span class="tag">&lt;<span class="name">code</span>&gt;</span>.NET<span class="tag">&lt;/<span class="name">code</span>&gt;</span>! Welcome to <span class="tag">&lt;<span class="name">strong</span>&gt;</span>WebAssembly<span class="tag">&lt;/<span class="name">strong</span>&gt;</span> with <span class="tag">&lt;<span class="name">a</span> <span class="attr">href</span>=<span class="string">"https://wasmtime.dev"</span>&gt;</span>Wasmtime<span class="tag">&lt;/<span class="name">a</span>&gt;</span>!<span class="tag">&lt;/<span class="name">h1</span>&gt;</span></span><br></pre></td></tr></table></figure>
+<!-- 
+
+# What’s next for Wasmtime for .NET?
+That was a surprisingly large amount of C# code that was necessary to implement this demo, wasn’t it?
+
+There are two major features we have planned that will help simplify this: 
+-->
+<h2 id="Wasmtime-for-NET的下一步计划是什么？"><a href="#Wasmtime-for-NET的下一步计划是什么？" class="headerlink" title="Wasmtime for .NET的下一步计划是什么？"></a>Wasmtime for .NET的下一步计划是什么？</h2><p>从这里例子中，我们可以看到，现在实现该demo还需大量的C#代码，不是吗？</p>
+<p>我们计划了从两个主要的功能点来简化代码的实现：</p>
+<!-- Exposing Wasmtime’s WASI implementation to .NET (and other languages)
+In our implementation of Host above, we had to manually implement fd_write and random_get, which are WASI functions.
+
+Wasmtime itself has a WASI implementation, but currently it isn’t accessible to the .NET API.
+
+Once the .NET API can access and configure the WASI implementation of Wasmtime, there will no longer be a need for .NET hosts to provide their own implementation of WASI functions.
+
+Implementing interface types for .NET
+
+As discussed earlier, WebAssembly interface types enable a more idiomatic integration of WebAssembly with a hosting programming language.
+
+Once the .NET API implements the interface types proposal, there shouldn’t be a need to create an Allocator class like the one we implemented.
+
+Instead, functions that use types like string should simply work without having to write any glue code in .NET. -->
+<ul>
+<li><p><strong>将Wasmtime的WASI实现开放给.NET和其他语言</strong></p>
+<p>在上面<code>Host</code>的实现中，必须手动去编写<code>fd_write</code>和<code>random_get</code>，但它们实际上是WASI中已有的函数。</p>
+<p>Wasmtime本身包含了WASI的实现，只是目前无法通过.NET的API进行访问。</p>
+<p>一旦.NET的API可以访问和配置Wasmtime的WASI版本实现，则.NET的host环境将无需提供自己的实现。</p>
+</li>
+</ul>
+<ul>
+<li><p><strong>实现.NET的接口类型</strong></p>
+<p>前面提到，wasm接口类型可以使wasm更加自然地与托管编程语言进行集成。</p>
+<p>一旦.NET的API实现了未来通过后的接口类型提案，便无需像前面那样去还要创建一个辅助功能的<code>Allocator</code>类。</p>
+<p>到那时，使用诸如字符串等类型的函数可很容易办到，而不必在.NET中编写任何粘合代码。</p>
+</li>
+</ul>
+<!-- The hope, then, is that this is what it might look like in the future to implement this demo from .NET: -->
+<p>所以希望将来该demo是这样的：</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">using</span> System;</span><br><span class="line"><span class="keyword">using</span> Wasmtime;</span><br><span class="line"></span><br><span class="line"><span class="keyword">namespace</span> <span class="title">WasmtimeDemo</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">interface</span> <span class="title">Markdown</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="function"><span class="keyword">string</span> <span class="title">Render</span>(<span class="params"><span class="keyword">string</span> input</span>)</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">class</span> <span class="title">Program</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">const</span> <span class="keyword">string</span> MarkdownSource =</span><br><span class="line">            <span class="string">"# Hello, `.NET`! Welcome to **WebAssembly** with [Wasmtime](https://wasmtime.dev)!"</span>;</span><br><span class="line"></span><br><span class="line">        <span class="function"><span class="keyword">static</span> <span class="keyword">void</span> <span class="title">Main</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function">        </span>&#123;</span><br><span class="line">            <span class="keyword">using</span> <span class="keyword">var</span> markdown = Module.Load&lt;Markdown&gt;(<span class="string">"markdown.wasm"</span>);</span><br><span class="line"></span><br><span class="line">            Console.WriteLine(markdown.Render(MarkdownSource));</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<!-- I think we can all agree that looks so much better! -->
+<p>我们都认为这样看起来简洁多了！</p>
+<!-- That’s a wrap!
+This is the exciting beginning of using WebAssembly outside of the web browser from many different programming environments, including Microsoft’s .NET platform.
+
+If you’re a .NET developer, we hope you’ll join us on this journey!
+
+The .NET demo code from this article can be found in the Wasmtime Demos repository. -->
+<h2 id="结束语"><a href="#结束语" class="headerlink" title="结束语"></a>结束语</h2><p>这是在Web浏览器之外利用不同的编程环境（包括微软的.NET平台）使用wasm的兴奋之旅的开始，如果你是.NET开发者，希望您能加入我们的旅程！</p>
+<p><em>本文的.NET示例代码可以在<a href="https://github.com/bytecodealliance/wasmtime-demos/tree/master/dotnet" target="_blank" rel="noopener">Wasmtime示例代码库</a>中找到。</em></p>
+<p><em>(译者注：本文原地址为 <a href="https://hacks.mozilla.org/2019/12/using-webassembly-from-dotnet-with-wasmtime/" target="_blank" rel="noopener">https://hacks.mozilla.org/2019/12/using-webassembly-from-dotnet-with-wasmtime/</a> ，原作者为 <a href="https://hacks.mozilla.org/author/phuenemozilla-com/" target="_blank" rel="noopener">Peter Huene</a>)</em></p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/WebAssembly/" rel="tag"># WebAssembly</a>
+          
+            <a href="/tags/Rust/" rel="tag"># Rust</a>
+          
+            <a href="/tags/Wasmtime/" rel="tag"># Wasmtime</a>
+          
+            <a href="/tags/NET/" rel="tag"># .NET</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/03/13/midori/6-performance-culture/" rel="next" title="Midori博客系列翻译（6）——性能文化">
+                <i class="fa fa-chevron-left"></i> Midori博客系列翻译（6）——性能文化</a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2020/01/23/Translation-The-5-year-journey-to-bring-restartable-sequences-to-Linux/" rel="prev" title="【译文】将Restartable Sequcences (rseq)引入Linux的五年之旅">
+                【译文】将Restartable Sequcences (rseq)引入Linux的五年之旅 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhangpf</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">16</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                
+                  <span class="site-state-item-count">1</span>
+                  <span class="site-state-item-name">categories</span>
+                
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">33</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+            <div class="feed-link motion-element">
+              <a href="/atom.xml" rel="alternate">
+                <i class="fa fa-rss"></i>
+                RSS
+              </a>
+            </div>
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhangpf" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="mailto:zpfalpc23@gmail.com" target="_blank" title="E-Mail">
+                      
+                        <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#概述"><span class="nav-number">1.</span> <span class="nav-text">概述</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#在平台间共享更多的代码"><span class="nav-number">1.1.</span> <span class="nav-text">在平台间共享更多的代码</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#安全地隔离不可信代码"><span class="nav-number">1.2.</span> <span class="nav-text">安全地隔离不可信代码</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#通过接口类型改进互操作性"><span class="nav-number">1.3.</span> <span class="nav-text">通过接口类型改进互操作性</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#深入研究通过-NET使用wasm"><span class="nav-number">2.</span> <span class="nav-text">深入研究通过.NET使用wasm</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#创建wasm模块"><span class="nav-number">3.</span> <span class="nav-text">创建wasm模块</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#检视wasm模块内部"><span class="nav-number">3.1.</span> <span class="nav-text">检视wasm模块内部</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#模块需要host所提供的环境支持"><span class="nav-number">3.2.</span> <span class="nav-text">模块需要host所提供的环境支持</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#模块为主机提供了怎样的功能"><span class="nav-number">3.3.</span> <span class="nav-text">模块为主机提供了怎样的功能</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#创建-NET工程"><span class="nav-number">4.</span> <span class="nav-text">创建.NET工程</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#为wasm导入-NET代码"><span class="nav-number">5.</span> <span class="nav-text">为wasm导入.NET代码</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#良好的宿主环境"><span class="nav-number">6.</span> <span class="nav-text">良好的宿主环境</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#渲染markdown"><span class="nav-number">7.</span> <span class="nav-text">渲染markdown</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#运行代码"><span class="nav-number">8.</span> <span class="nav-text">运行代码</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Wasmtime-for-NET的下一步计划是什么？"><span class="nav-number">9.</span> <span class="nav-text">Wasmtime for .NET的下一步计划是什么？</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#结束语"><span class="nav-number">10.</span> <span class="nav-text">结束语</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhangpf</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Mist</a> v5.1.4</div>
+
+
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+  
+    <span class="site-uv">
+      <i class="fa fa-user"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_uv"></span>
+      
+    </span>
+  
+
+  
+    <span class="site-pv">
+      <i class="fa fa-eye"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_pv"></span>
+      
+    </span>
+  
+</div>
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick,mail,link';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: true,
+        notify: true,
+        appId: 'iew5TMrdThxWQbOailKTyCQD-gzGzoHsz',
+        appKey: 'E98qgMa0ynS9XawTqsPPg9kq',
+        placeholder: '欢迎留下宝贵的评论',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+  <script type="text/javascript">
+    // Popup Window;
+    var isfetched = false;
+    var isXml = true;
+    // Search DB path;
+    var search_path = "search.xml";
+    if (search_path.length === 0) {
+      search_path = "search.xml";
+    } else if (/json$/i.test(search_path)) {
+      isXml = false;
+    }
+    var path = "/" + search_path;
+    // monitor main search box;
+
+    var onPopupClose = function (e) {
+      $('.popup').hide();
+      $('#local-search-input').val('');
+      $('.search-result-list').remove();
+      $('#no-result').remove();
+      $(".local-search-pop-overlay").remove();
+      $('body').css('overflow', '');
+    }
+
+    function proceedsearch() {
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay"></div>')
+        .css('overflow', 'hidden');
+      $('.search-popup-overlay').click(onPopupClose);
+      $('.popup').toggle();
+      var $localSearchInput = $('#local-search-input');
+      $localSearchInput.attr("autocapitalize", "none");
+      $localSearchInput.attr("autocorrect", "off");
+      $localSearchInput.focus();
+    }
+
+    // search function;
+    var searchFunc = function(path, search_id, content_id) {
+      'use strict';
+
+      // start loading animation
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay">' +
+          '<div id="search-loading-icon">' +
+          '<i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>' +
+          '</div>' +
+          '</div>')
+        .css('overflow', 'hidden');
+      $("#search-loading-icon").css('margin', '20% auto 0 auto').css('text-align', 'center');
+
+      $.ajax({
+        url: path,
+        dataType: isXml ? "xml" : "json",
+        async: true,
+        success: function(res) {
+          // get the contents from search data
+          isfetched = true;
+          $('.popup').detach().appendTo('.header-inner');
+          var datas = isXml ? $("entry", res).map(function() {
+            return {
+              title: $("title", this).text(),
+              content: $("content",this).text(),
+              url: $("url" , this).text()
+            };
+          }).get() : res;
+          var input = document.getElementById(search_id);
+          var resultContent = document.getElementById(content_id);
+          var inputEventFunction = function() {
+            var searchText = input.value.trim().toLowerCase();
+            var keywords = searchText.split(/[\s\-]+/);
+            if (keywords.length > 1) {
+              keywords.push(searchText);
+            }
+            var resultItems = [];
+            if (searchText.length > 0) {
+              // perform local searching
+              datas.forEach(function(data) {
+                var isMatch = false;
+                var hitCount = 0;
+                var searchTextCount = 0;
+                var title = data.title.trim();
+                var titleInLowerCase = title.toLowerCase();
+                var content = data.content.trim().replace(/<[^>]+>/g,"");
+                var contentInLowerCase = content.toLowerCase();
+                var articleUrl = decodeURIComponent(data.url);
+                var indexOfTitle = [];
+                var indexOfContent = [];
+                // only match articles with not empty titles
+                if(title != '') {
+                  keywords.forEach(function(keyword) {
+                    function getIndexByWord(word, text, caseSensitive) {
+                      var wordLen = word.length;
+                      if (wordLen === 0) {
+                        return [];
+                      }
+                      var startPosition = 0, position = [], index = [];
+                      if (!caseSensitive) {
+                        text = text.toLowerCase();
+                        word = word.toLowerCase();
+                      }
+                      while ((position = text.indexOf(word, startPosition)) > -1) {
+                        index.push({position: position, word: word});
+                        startPosition = position + wordLen;
+                      }
+                      return index;
+                    }
+
+                    indexOfTitle = indexOfTitle.concat(getIndexByWord(keyword, titleInLowerCase, false));
+                    indexOfContent = indexOfContent.concat(getIndexByWord(keyword, contentInLowerCase, false));
+                  });
+                  if (indexOfTitle.length > 0 || indexOfContent.length > 0) {
+                    isMatch = true;
+                    hitCount = indexOfTitle.length + indexOfContent.length;
+                  }
+                }
+
+                // show search results
+
+                if (isMatch) {
+                  // sort index by position of keyword
+
+                  [indexOfTitle, indexOfContent].forEach(function (index) {
+                    index.sort(function (itemLeft, itemRight) {
+                      if (itemRight.position !== itemLeft.position) {
+                        return itemRight.position - itemLeft.position;
+                      } else {
+                        return itemLeft.word.length - itemRight.word.length;
+                      }
+                    });
+                  });
+
+                  // merge hits into slices
+
+                  function mergeIntoSlice(text, start, end, index) {
+                    var item = index[index.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    var hits = [];
+                    var searchTextCountInSlice = 0;
+                    while (position + word.length <= end && index.length != 0) {
+                      if (word === searchText) {
+                        searchTextCountInSlice++;
+                      }
+                      hits.push({position: position, length: word.length});
+                      var wordEnd = position + word.length;
+
+                      // move to next position of hit
+
+                      index.pop();
+                      while (index.length != 0) {
+                        item = index[index.length - 1];
+                        position = item.position;
+                        word = item.word;
+                        if (wordEnd > position) {
+                          index.pop();
+                        } else {
+                          break;
+                        }
+                      }
+                    }
+                    searchTextCount += searchTextCountInSlice;
+                    return {
+                      hits: hits,
+                      start: start,
+                      end: end,
+                      searchTextCount: searchTextCountInSlice
+                    };
+                  }
+
+                  var slicesOfTitle = [];
+                  if (indexOfTitle.length != 0) {
+                    slicesOfTitle.push(mergeIntoSlice(title, 0, title.length, indexOfTitle));
+                  }
+
+                  var slicesOfContent = [];
+                  while (indexOfContent.length != 0) {
+                    var item = indexOfContent[indexOfContent.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    // cut out 100 characters
+                    var start = position - 20;
+                    var end = position + 80;
+                    if(start < 0){
+                      start = 0;
+                    }
+                    if (end < position + word.length) {
+                      end = position + word.length;
+                    }
+                    if(end > content.length){
+                      end = content.length;
+                    }
+                    slicesOfContent.push(mergeIntoSlice(content, start, end, indexOfContent));
+                  }
+
+                  // sort slices in content by search text's count and hits' count
+
+                  slicesOfContent.sort(function (sliceLeft, sliceRight) {
+                    if (sliceLeft.searchTextCount !== sliceRight.searchTextCount) {
+                      return sliceRight.searchTextCount - sliceLeft.searchTextCount;
+                    } else if (sliceLeft.hits.length !== sliceRight.hits.length) {
+                      return sliceRight.hits.length - sliceLeft.hits.length;
+                    } else {
+                      return sliceLeft.start - sliceRight.start;
+                    }
+                  });
+
+                  // select top N slices in content
+
+                  var upperBound = parseInt('1');
+                  if (upperBound >= 0) {
+                    slicesOfContent = slicesOfContent.slice(0, upperBound);
+                  }
+
+                  // highlight title and content
+
+                  function highlightKeyword(text, slice) {
+                    var result = '';
+                    var prevEnd = slice.start;
+                    slice.hits.forEach(function (hit) {
+                      result += text.substring(prevEnd, hit.position);
+                      var end = hit.position + hit.length;
+                      result += '<b class="search-keyword">' + text.substring(hit.position, end) + '</b>';
+                      prevEnd = end;
+                    });
+                    result += text.substring(prevEnd, slice.end);
+                    return result;
+                  }
+
+                  var resultItem = '';
+
+                  if (slicesOfTitle.length != 0) {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + highlightKeyword(title, slicesOfTitle[0]) + "</a>";
+                  } else {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + title + "</a>";
+                  }
+
+                  slicesOfContent.forEach(function (slice) {
+                    resultItem += "<a href='" + articleUrl + "'>" +
+                      "<p class=\"search-result\">" + highlightKeyword(content, slice) +
+                      "...</p>" + "</a>";
+                  });
+
+                  resultItem += "</li>";
+                  resultItems.push({
+                    item: resultItem,
+                    searchTextCount: searchTextCount,
+                    hitCount: hitCount,
+                    id: resultItems.length
+                  });
+                }
+              })
+            };
+            if (keywords.length === 1 && keywords[0] === "") {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-search fa-5x" /></div>'
+            } else if (resultItems.length === 0) {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-frown-o fa-5x" /></div>'
+            } else {
+              resultItems.sort(function (resultLeft, resultRight) {
+                if (resultLeft.searchTextCount !== resultRight.searchTextCount) {
+                  return resultRight.searchTextCount - resultLeft.searchTextCount;
+                } else if (resultLeft.hitCount !== resultRight.hitCount) {
+                  return resultRight.hitCount - resultLeft.hitCount;
+                } else {
+                  return resultRight.id - resultLeft.id;
+                }
+              });
+              var searchResultList = '<ul class=\"search-result-list\">';
+              resultItems.forEach(function (result) {
+                searchResultList += result.item;
+              })
+              searchResultList += "</ul>";
+              resultContent.innerHTML = searchResultList;
+            }
+          }
+
+          if ('auto' === 'auto') {
+            input.addEventListener('input', inputEventFunction);
+          } else {
+            $('.search-icon').click(inputEventFunction);
+            input.addEventListener('keypress', function (event) {
+              if (event.keyCode === 13) {
+                inputEventFunction();
+              }
+            });
+          }
+
+          // remove loading animation
+          $(".local-search-pop-overlay").remove();
+          $('body').css('overflow', '');
+
+          proceedsearch();
+        }
+      });
+    }
+
+    // handle and trigger popup window;
+    $('.popup-trigger').click(function(e) {
+      e.stopPropagation();
+      if (isfetched === false) {
+        searchFunc(path, 'local-search-input', 'local-search-result');
+      } else {
+        proceedsearch();
+      };
+    });
+
+    $('.popup-btn-close').click(onPopupClose);
+    $('.popup').click(function(e){
+      e.stopPropagation();
+    });
+    $(document).on('keyup', function (event) {
+      var shouldDismissSearchPopup = event.which === 27 &&
+        $('.search-popup').is(':visible');
+      if (shouldDismissSearchPopup) {
+        onPopupClose();
+      }
+    });
+  </script>
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

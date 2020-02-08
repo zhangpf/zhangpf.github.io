@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+
+
+
+
+<html class="theme-next mist" lang="">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.4" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=5.1.4">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=5.1.4">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=5.1.4" color="#222">
+
+
+
+
+
+  <meta name="keywords" content="并发,云计算,Windows,UMS," />
+
+
+
+
+
+  <link rel="alternate" href="/atom.xml" title="Wisdom from zhangpf" type="application/atom+xml" />
+
+
+
+
+
+
+<meta name="description" content="前几天在看关于Rust取消M:N线程模型背后的理性选择时候，看到Daniel Micay 的一篇帖子中提到了Windows的UMS功能，了解之后s觉得有点意思。所以就花了几天研究一下，分析了它的优缺点和基本性能情况，于是总结成此文。 背景UMS (User-Mode Scheduling)是微软在其Windows 7及其以后版本的64位操作系统中添加的一个功能，其目的是支持应用对申请的线程进行自定">
+<meta name="keywords" content="并发,云计算,Windows,UMS">
+<meta property="og:type" content="article">
+<meta property="og:title" content="使用Windows的UMS(User-Mode Scheduling)实现轻量级线程">
+<meta property="og:url" content="https://blog.zhangpf.com/2018/08/27/using-Windows-UMS-for-lightweight-threading-model/index.html">
+<meta property="og:site_name" content="Wisdom from zhangpf">
+<meta property="og:description" content="前几天在看关于Rust取消M:N线程模型背后的理性选择时候，看到Daniel Micay 的一篇帖子中提到了Windows的UMS功能，了解之后s觉得有点意思。所以就花了几天研究一下，分析了它的优缺点和基本性能情况，于是总结成此文。 背景UMS (User-Mode Scheduling)是微软在其Windows 7及其以后版本的64位操作系统中添加的一个功能，其目的是支持应用对申请的线程进行自定">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://blog.zhangpf.com/2018/08/27/using-Windows-UMS-for-lightweight-threading-model/creation.svg">
+<meta property="og:image" content="https://blog.zhangpf.com/2018/08/27/using-Windows-UMS-for-lightweight-threading-model/yield.svg">
+<meta property="og:image" content="https://blog.zhangpf.com/2018/08/27/using-Windows-UMS-for-lightweight-threading-model/syscall.svg">
+<meta property="og:updated_time" content="2020-01-29T02:19:30.149Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="使用Windows的UMS(User-Mode Scheduling)实现轻量级线程">
+<meta name="twitter:description" content="前几天在看关于Rust取消M:N线程模型背后的理性选择时候，看到Daniel Micay 的一篇帖子中提到了Windows的UMS功能，了解之后s觉得有点意思。所以就花了几天研究一下，分析了它的优缺点和基本性能情况，于是总结成此文。 背景UMS (User-Mode Scheduling)是微软在其Windows 7及其以后版本的64位操作系统中添加的一个功能，其目的是支持应用对申请的线程进行自定">
+<meta name="twitter:image" content="https://blog.zhangpf.com/2018/08/27/using-Windows-UMS-for-lightweight-threading-model/creation.svg">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '5.1.4',
+    sidebar: {"position":"left","display":"always","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: true,
+    tabs: true,
+    motion: {"enable":false,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    duoshuo: {
+      userId: '0',
+      author: 'Author'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="https://blog.zhangpf.com/2018/08/27/using-Windows-UMS-for-lightweight-threading-model/"/>
+
+
+
+
+
+  <title>使用Windows的UMS(User-Mode Scheduling)实现轻量级线程 | Wisdom from zhangpf</title>
+  
+
+
+
+
+
+
+
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="default">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/"  class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Wisdom from zhangpf</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+      
+        <h1 class="site-subtitle" itemprop="description">express clear viewpoint with plain words</h1>
+      
+  </div>
+
+  <div class="site-nav-toggle">
+    <button>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            Home
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            Archives
+          </a>
+        </li>
+      
+
+      
+        <li class="menu-item menu-item-search">
+          
+            <a href="javascript:;" class="popup-trigger">
+          
+            
+              <i class="menu-item-icon fa fa-search fa-fw"></i> <br />
+            
+            Search
+          </a>
+        </li>
+      
+    </ul>
+  
+
+  
+    <div class="site-search">
+      
+  <div class="popup search-popup local-search-popup">
+  <div class="local-search-header clearfix">
+    <span class="search-icon">
+      <i class="fa fa-search"></i>
+    </span>
+    <span class="popup-btn-close">
+      <i class="fa fa-times-circle"></i>
+    </span>
+    <div class="local-search-input-wrapper">
+      <input autocomplete="off"
+             placeholder="Searching..." spellcheck="false"
+             type="text" id="local-search-input">
+    </div>
+  </div>
+  <div id="local-search-result"></div>
+</div>
+
+
+
+    </div>
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://blog.zhangpf.com/2018/08/27/using-Windows-UMS-for-lightweight-threading-model/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="zhangpf">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Wisdom from zhangpf">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">使用Windows的UMS(User-Mode Scheduling)实现轻量级线程</h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2018-08-27T21:04:23+08:00">
+                2018-08-27
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">In</span>
+              
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/中文/" itemprop="url" rel="index">
+                    <span itemprop="name">中文</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+              <span class="post-comments-count">
+                <span class="post-meta-divider">|</span>
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-comment-o"></i>
+                </span>
+                <a href="/2018/08/27/using-Windows-UMS-for-lightweight-threading-model/#comments" itemprop="discussionUrl">
+                  <span class="post-comments-count valine-comment-count" data-xid="/2018/08/27/using-Windows-UMS-for-lightweight-threading-model/" itemprop="commentCount"></span>
+                </a>
+              </span>
+            
+          
+
+          
+          
+
+          
+            <span class="post-meta-divider">|</span>
+            <span class="page-pv"><i class="fa fa-file-o"></i>
+            <span class="busuanzi-value" id="busuanzi_value_page_pv" ></span>
+            </span>
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>前几天在看关于Rust取消M:N线程模型背后的理性选择时候，看到<a href="https://github.com/thestinger" target="_blank" rel="noopener">Daniel Micay</a>
+的一篇帖子中提到了Windows的UMS功能，了解之后s觉得有点意思。所以就花了几天研究一下，分析了它的优缺点和基本性能情况，于是总结成此文。</p>
+<h2 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h2><p><a href="https://docs.microsoft.com/en-us/windows/desktop/procthread/user-mode-scheduling" target="_blank" rel="noopener">UMS (User-Mode Scheduling)</a>是微软在其Windows 7及其以后版本的64位操作系统中添加的一个功能，其目的是支持应用对申请的线程进行自定义管理，以此方式实现类似于轻量级线程的高效并发。</p>
+<p>虽然在云计算领域，Linux成了事实上的基础操作系统平台，但没想到却是微软首先在其自家系统上实现了此功能，Google的开发者在Linux尝试了<a href="https://blog.linuxplumbersconf.org/2013/ocw/system/presentations/1653/original/LPC%20-%20User%20Threading.pdf" target="_blank" rel="noopener">类似的实现</a>，不过据我所了解，到目前为止都尚未进入Linux的主分支。</p>
+<p>我们都知道，根据用户空间和内核空间的映射关系不同，线程模型可以分为以下三种：</p>
+<ol>
+<li>1:1，即内核态线程：用户空间中的不同线程，分别对应到内核中的一个线程。所有的线程上下文都是由内核来管理，并且所有线程状态的改变，包括调度、I/O阻塞、page fault和信号事件等，都需要进行一次“上下文切换(context switch)”到内核空间中才能处理。Linux和Windows原生线程都是这种类型，它的优点是模型简单，而且能够透明地利用多核(multicore)进行并行处理，缺点是应对大规模的线程管理和并发乏力，因为大量的开销都花在了上下文切换上。</li>
+<li><p>N:1，即用户态线程：用户空间中的多个线程，都对应于内核的用一上下文(context)，线程的切换不再需要进入到内核处理，可以直接由用户态的runtime进行管理，在多种编程语言（如Python，PHP等）中又称为“绿色线程(green thread)”。与内核态线程相反，这类线程的优点是可以支持大量并发，但是却没法直接扩展到多核上进行处理。另外，如果有某个线程需要I/O操作，或因缺页中断而被阻塞，所有的用户态线程都将一同被阻塞。所以，通常的语言级虚拟机都对此情况进行补救措施，例如使用专门的线程进行I/O操作，以及使用mmap等系统调用避免意外的缺页中断。</p>
+</li>
+<li><p>N:M，即混合线程：N个不同的用户态线程对应到M个内核线程上。这种模型是介于上述两种模型之间，看似可以兼顾两者的优点，实际上却产生了更多的问题。首先是模型变得复杂，不仅要考虑单个内核线程上的用户态线程的执行同步情况，而且还要考虑用户态线程可能在多个内核线程上的调度和同步，并且实际上并没有消除用户态线程的阻塞问题。所以在现实中使用混合模型的系统不是很多，比较典型的有golang和<a href="https://ghc.haskell.org/trac/ghc/wiki/LightweightConcurrency" target="_blank" rel="noopener">Haskell</a>。</p>
+</li>
+</ol>
+<p>另外，一个比较容易想到的消除I/O同步阻塞的解决方案是使用异步IO，即线程不等待I/O处理子程序的完成便返回，事后再通过其他方式进行确认。不过这么好的方法怎么不去使用呢？Daniel Micay在[帖子][rust-thread]里提到，其原因有两点：</p>
+<ol>
+<li>历史原因，大多数的依赖库都是采用同步阻塞I/O，并利用原生内核线程进行并发的方式，在它们的基础上还无法简单地进行异步的改造；</li>
+<li>在操作系统发展的过程中，CPU的性能也在不断的改进，其中就包括上下文切换的性能，在该帖子中提到的他作的一个对比实验的结果表明，Rust的协程（我们知道，后来Rust把协程移除了标准库）和OS Thread在创建的开销上其实性能差别不大。</li>
+</ol>
+<p>那么两种在上下文切换时开销差不都，但为什么实际系统中内核态线程在高并发上的性能又比协程差很多？这是因为<strong>大量的开销实际消耗在了位于内核态的线程调度上</strong>。通用操作系统内核为了支持多种不同计算场景（不只是高并发，还有实时计算场景等）下的综合性能，所以也需要较长的时间来调度（考虑是否要实时抢断，是否公平调度等）。但实际上，在云计算中，服务响应模型是比较简单的，通常简单轮询的调度都可以达到目的。</p>
+<p>基于这样的事实，这就导致了Windows操作系统中UMS的产生。UMS中的线程依然是原生线程，但是在切换时，内核无需进入调度流程，直接将CPU控制权交给用户态我们自定义的调度器上。调度器可以根据应用的特点和需求做出更适合且高效的调度策略，选择一个线程执行，并将CPU的执行权交给它。在本文中，我们主要分析了一个基于<a href="https://gist.github.com/pervognsen/8cbde6ea71da8256865e05bf4fcdfa7d" target="_blank" rel="noopener">pervognsen的代码片段</a>的UMS轻量级线程调度的简单实现，并和基于系统调度的普通原生线程，以及Windows的Fiber库实现的轻量级线程，三者进行性能对比测试，从中了解UMS的一些基础性能情况。具体的实现请见<a href="https://github.com/zhangpf/cloud-demos/tree/master/windows-ums" target="_blank" rel="noopener">Github仓库</a>。</p>
+<h2 id="UMS概览"><a href="#UMS概览" class="headerlink" title="UMS概览"></a>UMS概览</h2><h3 id="相关数据结构"><a href="#相关数据结构" class="headerlink" title="相关数据结构"></a>相关数据结构</h3><ol>
+<li><strong>UMS工作线程(Worker thread)</strong>：执行具体计算任务的线程，它们和普通的原生线程几乎具有相同的行为方式，并且进行系统调用，I/O或异常处理等不会阻塞其他线程。</li>
+<li><strong>UMS调度器线程(Scheduler thread)</strong>：UMS调度器线程本质上也是一个普通的线程，它负责对其他工作线程进行调度，执行调度策略，但它的执行时机还是需要由Windows来确定。</li>
+<li><strong>线程上下文(Context)</strong>：UMS线程上下文表示工作线程的状态，用于标识UMS函数调用中的工作线程。它通过调用<code>CreateUmsThreadContext</code>进行创建的。</li>
+<li><strong>完成列表(Completion List)</strong>：完成列表接收已在内核中完成执行并准备在用户模式下运行的UMS工作线程。只有Windows才能将工作线程排队到完成列表中。新的UMS工作线程自动排队到创建线程时指定的完成列表，以前阻塞的工作线程在不再被阻止时也会排队到完成列表。调度器线程可以查询完成列表，从而知道哪些线程已经处于就绪状态，然后再将这些线程加入自己私有的就绪队列中。<!-- % 每个UMS调度器线程与单个完成列表相关联。但是，相同的完成列表可以与任意数量的UMS调度程序线程相关联，并且调度程序线程可以从具有指针的任何完成列表中检索UMS上下文。每个完成列表都有一个关联事件，当系统将一个或多个工作线程排入空列表时，系统会通过该事件发出信号。 `GetUmsCompletionListEvent`函数检索指定完成列表的事件句柄。应用程序可以等待多个完成列表事件以及对应用程序有意义的其他事件。EnterUmsSchedulingMode的调用者指定完成列表和UmsSchedulerProc入口点函数以与UMS调度程序线程关联。完成将调用线程转换为UMS后，系统将调用指定的入口点函数。调度程序入口点函数负责确定指定线程的适当下一个操作。 -->
+</li>
+</ol>
+<h3 id="UMS相关的API"><a href="#UMS相关的API" class="headerlink" title="UMS相关的API"></a>UMS相关的API</h3><ul>
+<li><a href="https://docs.microsoft.com/en-us/windows/desktop/api/WinBase/nf-winbase-enterumsschedulingmode" target="_blank" rel="noopener"><code>EnterUmsSchedulingMode</code></a>：将调用线程转换为UMS的调度器线程。</li>
+<li><a href="https://docs.microsoft.com/en-us/windows/desktop/api/WinBase/nf-winbase-createumsthreadcontext" target="_blank" rel="noopener"><code>CreateUmsThreadContext</code></a>：创建UMS工作线程的上下文。</li>
+<li><a href="https://docs.microsoft.com/en-us/windows/desktop/api/WinBase/nf-winbase-createumscompletionlist" target="_blank" rel="noopener"><code>CreateUmsCompletionList</code></a>：创建UMS完成列表。</li>
+<li><a href="https://docs.microsoft.com/en-us/windows/desktop/api/WinBase/nf-winbase-getumscompletionlistevent" target="_blank" rel="noopener"><code>GetUmsCompletionListEvent</code></a>：检索与指定的UMS完成列表关联的事件的句柄。</li>
+<li><a href="https://docs.microsoft.com/en-us/windows/desktop/api/WinBase/nf-winbase-umsthreadyield" target="_blank" rel="noopener"><code>UmsThreadYield</code></a>：在工作线程中调用，放弃CPU控制权，并触发CPU进入UMS调度器线程。</li>
+<li><a href="https://docs.microsoft.com/en-us/windows/desktop/api/WinBase/nf-winbase-executeumsthread" target="_blank" rel="noopener"><code>ExecuteUmsThread</code></a>：运行指定的UMS工作线程。</li>
+<li><a href="https://docs.microsoft.com/en-us/windows/desktop/api/WinBase/nf-winbase-dequeueumscompletionlistitems" target="_blank" rel="noopener"><code>DequeueUmsCompletionListItems</code></a>：从UMS完成列表中将一个事件移出队列。</li>
+<li><a href="https://docs.microsoft.com/en-us/windows/desktop/api/WinBase/nf-winbase-queryumsthreadinformation" target="_blank" rel="noopener"><code>QueryUmsThreadInformation</code></a>：检索有关指定的UMS工作线程的信息。</li>
+<li><a href="https://docs.microsoft.com/en-us/windows/desktop/api/WinBase/nf-winbase-setumsthreadinformation" target="_blank" rel="noopener"><code>SetUmsThreadInformation</code></a>：为指定的UMS工作线程设置特定于应用程序的上下文信息。</li>
+</ul>
+<h2 id="核心流程的实现"><a href="#核心流程的实现" class="headerlink" title="核心流程的实现"></a>核心流程的实现</h2><h2 id="UMS工作线程和调度器线程"><a href="#UMS工作线程和调度器线程" class="headerlink" title="UMS工作线程和调度器线程"></a>UMS工作线程和调度器线程</h2><p>UMS工作线程的创建需要通过<code>CreateRemoteThreadEx</code>函数，这个跟普通线程没什么区别。不过在创建的<code>attribute</code>参数中需要设置<code>PROC_THREAD_ATTRIBUTE_UMS_THREAD</code>属性，并将通过<code>CreateUmsCompletionList</code>创建的完成列表，传递给<code>UMS_CREATE_THREAD_ATTRIBUTES</code>类型的参数。例如：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line">PPROC_THREAD_ATTRIBUTE_LIST attribute_list = </span><br><span class="line">    (PPROC_THREAD_ATTRIBUTE_LIST) HeapAlloc(GetProcessHeap(), </span><br><span class="line">                                            <span class="number">0</span>, </span><br><span class="line">                                            attribute_list_size);</span><br><span class="line">InitializeProcThreadAttributeList(attribute_list, <span class="number">1</span>, <span class="number">0</span>, &amp;attribute_list_size);</span><br><span class="line"></span><br><span class="line">UMS_CREATE_THREAD_ATTRIBUTES ums_thread_attributes;</span><br><span class="line">ums_thread_attributes.UmsVersion = UMS_VERSION;</span><br><span class="line">ums_thread_attributes.UmsContext = ums_context;</span><br><span class="line">ums_thread_attributes.UmsCompletionList = scheduler_completion_list;</span><br><span class="line">UpdateProcThreadAttribute(attribute_list, </span><br><span class="line">                          <span class="number">0</span>, </span><br><span class="line">                          PROC_THREAD_ATTRIBUTE_UMS_THREAD, </span><br><span class="line">                          &amp;ums_thread_attributes, </span><br><span class="line">                          <span class="keyword">sizeof</span>(ums_thread_attributes), </span><br><span class="line">                          <span class="literal">NULL</span>, </span><br><span class="line">                          <span class="literal">NULL</span>);</span><br><span class="line"></span><br><span class="line">HANDLE thread = CreateRemoteThreadEx(GetCurrentProcess(), </span><br><span class="line">                                     <span class="literal">NULL</span>, </span><br><span class="line">                                     stack_size, </span><br><span class="line">                                     function, </span><br><span class="line">                                     parameter, </span><br><span class="line">                                     STACK_SIZE_PARAM_IS_A_RESERVATION, </span><br><span class="line">                                     attribute_list, </span><br><span class="line">                                     <span class="literal">NULL</span>);</span><br></pre></td></tr></table></figure>
+<p>应用的UMS调度器线程负责创建，管理和删除UMS工作线程并调度运行的UMS线程。它的创建过程是：通过<code>CreateThread</code>启动普通的线程，然后调用<code>EnterUmsSchedulingMode</code>函数将自身转换为UMS调度器线程类型：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function">DWORD WINAPI <span class="title">SchedulerThreadFunction</span><span class="params">(<span class="keyword">void</span> *parameter)</span> </span>&#123;</span><br><span class="line">    UMS_SCHEDULER_STARTUP_INFO scheduler_info;</span><br><span class="line">    scheduler_info.UmsVersion = UMS_VERSION;</span><br><span class="line">    scheduler_info.CompletionList = scheduler_completion_list;</span><br><span class="line">    scheduler_info.SchedulerProc = SchedulerCallback;</span><br><span class="line">    scheduler_info.SchedulerParam = <span class="literal">NULL</span>;</span><br><span class="line">    BOOL result = EnterUmsSchedulingMode(&amp;scheduler_info);</span><br><span class="line">    <span class="keyword">return</span> <span class="number">0</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>我们都知道，普通的原生线程在通过<code>CreateThread</code>创建后默认会直接参与调度并执行，而在UMS模式下，新创建的工作线程默认时不会马上运行，需要等到调度器线程选择它，并通过<code>ExecuteUmsThread</code>函数运行，例如：</p>
+<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> (ready_queue.size() &gt; <span class="number">0</span>) &#123;</span><br><span class="line">    PUMS_CONTEXT runnable_thread = ready_queue.front();</span><br><span class="line">    ready_queue.pop_front();</span><br><span class="line"></span><br><span class="line">    BOOLEAN terminated = FALSE;</span><br><span class="line">    ExecuteUmsThread(runnable_thread);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h3 id="调度子程序入口"><a href="#调度子程序入口" class="headerlink" title="调度子程序入口"></a>调度子程序入口</h3><p>刚才我们的调度器线程函数中，设定了调度回调函数，<code>SchedulerCallback</code>，该函数是<code>UmsSchedulerProc</code>类型，具有如下的原型。<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">void WINAPI UmsSchedulerProc(</span><br><span class="line">    UMS_SCHEDULER_REASON reason, </span><br><span class="line">    ULONG_PTR payload, </span><br><span class="line">    void *parameter) &#123;</span><br></pre></td></tr></table></figure></p>
+<p>该函数在如下三个时刻由系统自动的触发执行：</p>
+<ol>
+<li><p>通过调用<code>EnterUmsSchedulingMode</code>将非UMS线程转换为UMS调度线程时：</p>
+ <img src="/2018/08/27/using-Windows-UMS-for-lightweight-threading-model/creation.svg" title="转换成调度线程时">
+</li>
+<li><p>当UMS工作线程调用<code>UmsThreadYield</code>，主动放弃CPU的执行权时：</p>
+ <img src="/2018/08/27/using-Windows-UMS-for-lightweight-threading-model/yield.svg" title="线程调用UmsThreadYield时">
+</li>
+<li><p>当UMS工作线程调用阻塞的系统服务（如系统调用或页面错误）时：</p>
+ <img src="/2018/08/27/using-Windows-UMS-for-lightweight-threading-model/syscall.svg" title="线程调用阻塞的系统服务">
+</li>
+</ol>
+<p><code>UmsSchedulerProc</code>函数的<code>Reason</code>参数指定调用入口点函数的上述三种不同的原因之一，以便于调度子程序能够根据不同的原因，进行不同的后续调度策略，例如：<figure class="highlight cpp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">switch</span> (reason) &#123;</span><br><span class="line">    <span class="keyword">case</span> UmsSchedulerStartup:</span><br><span class="line">        SetEvent(scheduler_initialized_event);</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    <span class="keyword">case</span> UmsSchedulerThreadBlocked: &#123;</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">case</span> UmsSchedulerThreadYield: &#123;</span><br><span class="line">        PUMS_CONTEXT yielded_thread = (PUMS_CONTEXT) payload;</span><br><span class="line">        <span class="keyword">void</span> *yielded_parameter = parameter;</span><br><span class="line">        ready_queue.push_back(yielded_thread);</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<h3 id="UMS最佳实践"><a href="#UMS最佳实践" class="headerlink" title="UMS最佳实践"></a>UMS最佳实践</h3><p>在实现UMS的应用程序时应遵循以下最佳实践：</p>
+<ol>
+<li>UMS线程上下文的基础结构需由系统进行管理，不应直接修改，而是使用<code>QueryUmsThreadInformation</code>
+和<code>SetUmsThreadInformation</code>来检索和设置有关UMS工作线程的信息。</li>
+<li>为了防止死锁，UMS调度器线程不应与UMS工作线程共享锁，这包括应用程序创建的锁和通过诸如从堆分配或加载DLL等操作间接获取的系统锁。</li>
+<li>当大多数处理和计算在用户模式下完成时，UMS是最高效的，因为它尽可能避免在UMS工作线程中进行系统调用。</li>
+<li>UMS工作线程不应假设正在使用系统调度程序，而应该考虑是被UMS调度器线程所调度。因此，不应使用系统API设置线程的优先级或亲和性。</li>
+<li>系统可能需要锁定UMS工作线程的线程上下文。如果调度器线程在工作线程被锁定时尝试执行该线程，则调用将失败。所以调度器线程设计为，重试对该工作线程上下文的访问。</li>
+</ol>
+<h2 id="性能测试"><a href="#性能测试" class="headerlink" title="性能测试"></a>性能测试</h2><p>按照仓库中的<a href="https://github.com/zhangpf/cloud-demos/blob/master/windows-ums/README.md" target="_blank" rel="noopener">文档</a>
+进行编译并运行测试程序。在我的笔记本（Lenovo Thinkpad X270，Intel i5-6200U的4核处理器和8G主存）上:</p>
+<ol>
+<li><strong>10</strong>个线程并发：</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">yield数量</th>
+<th style="text-align:center">100</th>
+<th style="text-align:center">1000</th>
+<th style="text-align:center">10000</th>
+<th style="text-align:center">100000</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">Native thread</td>
+<td style="text-align:center">1201ns</td>
+<td style="text-align:center">633ns</td>
+<td style="text-align:center">640ns</td>
+<td style="text-align:center">632ns</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>UMS</strong></td>
+<td style="text-align:center">2752ns</td>
+<td style="text-align:center">400ns</td>
+<td style="text-align:center">148ns</td>
+<td style="text-align:center">118ns</td>
+</tr>
+<tr>
+<td style="text-align:center">Fiber</td>
+<td style="text-align:center">96ns</td>
+<td style="text-align:center">105ns</td>
+<td style="text-align:center">101ns</td>
+<td style="text-align:center">88ns</td>
+</tr>
+</tbody>
+</table>
+<ol start="2">
+<li><strong>100</strong>个线程并发：</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">yield数量</th>
+<th style="text-align:center">100</th>
+<th style="text-align:center">1000</th>
+<th style="text-align:center">10000</th>
+<th style="text-align:center">100000</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">Native thread</td>
+<td style="text-align:center">769ns</td>
+<td style="text-align:center">610ns</td>
+<td style="text-align:center">601ns</td>
+<td style="text-align:center">591ns</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>UMS</strong></td>
+<td style="text-align:center">1428ns</td>
+<td style="text-align:center">245ns</td>
+<td style="text-align:center">152ns</td>
+<td style="text-align:center">128ns</td>
+</tr>
+<tr>
+<td style="text-align:center">Fiber</td>
+<td style="text-align:center">130ns</td>
+<td style="text-align:center">105ns</td>
+<td style="text-align:center">102ns</td>
+<td style="text-align:center">102ns</td>
+</tr>
+</tbody>
+</table>
+<ol start="3">
+<li><strong>1000</strong>个线程并发：</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">yield数量</th>
+<th style="text-align:center">100</th>
+<th style="text-align:center">1000</th>
+<th style="text-align:center">10000</th>
+<th style="text-align:center">100000</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">Native thread</td>
+<td style="text-align:center">941ns</td>
+<td style="text-align:center">790ns</td>
+<td style="text-align:center">793ns</td>
+<td style="text-align:center">785ns</td>
+</tr>
+<tr>
+<td style="text-align:center"><strong>UMS</strong></td>
+<td style="text-align:center">1400ns</td>
+<td style="text-align:center">276ns</td>
+<td style="text-align:center">146ns</td>
+<td style="text-align:center">127ns</td>
+</tr>
+<tr>
+<td style="text-align:center">Fiber</td>
+<td style="text-align:center">175ns</td>
+<td style="text-align:center">167ns</td>
+<td style="text-align:center">177ns</td>
+<td style="text-align:center">180ns</td>
+</tr>
+</tbody>
+</table>
+<p>在少量线程（10或100）的情况下，Fiber要比UMS性能好一些，不过在1000
+个线程的情况下UMS的实现比Fiber有一定的提升。不过两者比原生的线程（Native thread）相比，还是有很大的提高。另外要值得说的是，从资源管理器里看，UMS似乎是只能在单核上并发，无法像原生线程那样直接利用多核，如果将原生线程那样也</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>通过一个简单的性能对比，我们可以看到UMS在提升并发性能上比原生线程的调度要高出不少。但是，我们还是需要看到，UMS还是由一些方面的不足：</p>
+<ol>
+<li>自定义的线程调度使编码变得复杂，相对于原生线程和Fiber的实现，UMS的代码量大大增加了。所以改进方式是把相关的系统调用函数封装成易于调用的库，对上层提供透明的编程模块。</li>
+<li>性能对比里已经提到，UMS还是像Fiber那样只能利用单核，多核的扩展还是需要更多的支持。</li>
+</ol>
+<p>从Win7开始，Windows提供UMS相关的功能已经有10年的时间，不过尚未看到该技术有大规模使用的案例，这也是其比较遗憾的一方面。不过这种通过自定义调度器的解决方法是值得借鉴的，因为它为利用原生线程提供大规模并发访问找到了一条可行的方式，并且给我们提供更多的思路来实现轻量级线程。</p>
+
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/并发/" rel="tag"># 并发</a>
+          
+            <a href="/tags/云计算/" rel="tag"># 云计算</a>
+          
+            <a href="/tags/Windows/" rel="tag"># Windows</a>
+          
+            <a href="/tags/UMS/" rel="tag"># UMS</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/08/19/write-userspace-driver-in-rust/" rel="next" title="使用Rust编写用户态驱动程序">
+                <i class="fa fa-chevron-left"></i> 使用Rust编写用户态驱动程序</a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2018/09/04/The-software-platform-of-autonomous-vehicle/" rel="prev" title="自动驾驶需要什么样的软件平台">
+                自动驾驶需要什么样的软件平台 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+
+  
+    <div class="comments" id="comments">
+    </div>
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <p class="site-author-name" itemprop="name">zhangpf</p>
+              <p class="site-description motion-element" itemprop="description"></p>
+          </div>
+
+          <nav class="site-state motion-element">
+
+            
+              <div class="site-state-item site-state-posts">
+              
+                <a href="/archives/">
+              
+                  <span class="site-state-item-count">16</span>
+                  <span class="site-state-item-name">posts</span>
+                </a>
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-categories">
+                
+                  <span class="site-state-item-count">1</span>
+                  <span class="site-state-item-name">categories</span>
+                
+              </div>
+            
+
+            
+              
+              
+              <div class="site-state-item site-state-tags">
+                
+                  <span class="site-state-item-count">33</span>
+                  <span class="site-state-item-name">tags</span>
+                
+              </div>
+            
+
+          </nav>
+
+          
+            <div class="feed-link motion-element">
+              <a href="/atom.xml" rel="alternate">
+                <i class="fa fa-rss"></i>
+                RSS
+              </a>
+            </div>
+          
+
+          
+            <div class="links-of-author motion-element">
+                
+                  <span class="links-of-author-item">
+                    <a href="https://github.com/zhangpf" target="_blank" title="GitHub">
+                      
+                        <i class="fa fa-fw fa-github"></i>GitHub</a>
+                  </span>
+                
+                  <span class="links-of-author-item">
+                    <a href="mailto:zpfalpc23@gmail.com" target="_blank" title="E-Mail">
+                      
+                        <i class="fa fa-fw fa-envelope"></i>E-Mail</a>
+                  </span>
+                
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#背景"><span class="nav-number">1.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#UMS概览"><span class="nav-number">2.</span> <span class="nav-text">UMS概览</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#相关数据结构"><span class="nav-number">2.1.</span> <span class="nav-text">相关数据结构</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#UMS相关的API"><span class="nav-number">2.2.</span> <span class="nav-text">UMS相关的API</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#核心流程的实现"><span class="nav-number">3.</span> <span class="nav-text">核心流程的实现</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#UMS工作线程和调度器线程"><span class="nav-number">4.</span> <span class="nav-text">UMS工作线程和调度器线程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#调度子程序入口"><span class="nav-number">4.1.</span> <span class="nav-text">调度子程序入口</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#UMS最佳实践"><span class="nav-number">4.2.</span> <span class="nav-text">UMS最佳实践</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#性能测试"><span class="nav-number">5.</span> <span class="nav-text">性能测试</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#总结"><span class="nav-number">6.</span> <span class="nav-text">总结</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">zhangpf</span>
+
+  
+</div>
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a></div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/iissnan/hexo-theme-next">NexT.Mist</a> v5.1.4</div>
+
+
+
+
+        
+<div class="busuanzi-count">
+  <script async src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
+  
+    <span class="site-uv">
+      <i class="fa fa-user"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_uv"></span>
+      
+    </span>
+  
+
+  
+    <span class="site-pv">
+      <i class="fa fa-eye"></i>
+      <span class="busuanzi-value" id="busuanzi_value_site_pv"></span>
+      
+    </span>
+  
+</div>
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.4"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.4"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.4"></script>
+
+
+
+  
+
+
+  
+
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  <script src="//cdn1.lncld.net/static/js/3.0.4/av-min.js"></script>
+  <script src="//unpkg.com/valine/dist/Valine.min.js"></script>
+  
+  <script type="text/javascript">
+    var GUEST = ['nick','mail','link'];
+    var guest = 'nick,mail,link';
+    guest = guest.split(',').filter(item=>{
+      return GUEST.indexOf(item)>-1;
+    });
+    new Valine({
+        el: '#comments' ,
+        verify: true,
+        notify: true,
+        appId: 'iew5TMrdThxWQbOailKTyCQD-gzGzoHsz',
+        appKey: 'E98qgMa0ynS9XawTqsPPg9kq',
+        placeholder: '欢迎留下宝贵的评论',
+        avatar:'mm',
+        guest_info:guest,
+        pageSize:'10' || 10,
+    });
+  </script>
+
+
+
+  
+
+  <script type="text/javascript">
+    // Popup Window;
+    var isfetched = false;
+    var isXml = true;
+    // Search DB path;
+    var search_path = "search.xml";
+    if (search_path.length === 0) {
+      search_path = "search.xml";
+    } else if (/json$/i.test(search_path)) {
+      isXml = false;
+    }
+    var path = "/" + search_path;
+    // monitor main search box;
+
+    var onPopupClose = function (e) {
+      $('.popup').hide();
+      $('#local-search-input').val('');
+      $('.search-result-list').remove();
+      $('#no-result').remove();
+      $(".local-search-pop-overlay").remove();
+      $('body').css('overflow', '');
+    }
+
+    function proceedsearch() {
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay"></div>')
+        .css('overflow', 'hidden');
+      $('.search-popup-overlay').click(onPopupClose);
+      $('.popup').toggle();
+      var $localSearchInput = $('#local-search-input');
+      $localSearchInput.attr("autocapitalize", "none");
+      $localSearchInput.attr("autocorrect", "off");
+      $localSearchInput.focus();
+    }
+
+    // search function;
+    var searchFunc = function(path, search_id, content_id) {
+      'use strict';
+
+      // start loading animation
+      $("body")
+        .append('<div class="search-popup-overlay local-search-pop-overlay">' +
+          '<div id="search-loading-icon">' +
+          '<i class="fa fa-spinner fa-pulse fa-5x fa-fw"></i>' +
+          '</div>' +
+          '</div>')
+        .css('overflow', 'hidden');
+      $("#search-loading-icon").css('margin', '20% auto 0 auto').css('text-align', 'center');
+
+      $.ajax({
+        url: path,
+        dataType: isXml ? "xml" : "json",
+        async: true,
+        success: function(res) {
+          // get the contents from search data
+          isfetched = true;
+          $('.popup').detach().appendTo('.header-inner');
+          var datas = isXml ? $("entry", res).map(function() {
+            return {
+              title: $("title", this).text(),
+              content: $("content",this).text(),
+              url: $("url" , this).text()
+            };
+          }).get() : res;
+          var input = document.getElementById(search_id);
+          var resultContent = document.getElementById(content_id);
+          var inputEventFunction = function() {
+            var searchText = input.value.trim().toLowerCase();
+            var keywords = searchText.split(/[\s\-]+/);
+            if (keywords.length > 1) {
+              keywords.push(searchText);
+            }
+            var resultItems = [];
+            if (searchText.length > 0) {
+              // perform local searching
+              datas.forEach(function(data) {
+                var isMatch = false;
+                var hitCount = 0;
+                var searchTextCount = 0;
+                var title = data.title.trim();
+                var titleInLowerCase = title.toLowerCase();
+                var content = data.content.trim().replace(/<[^>]+>/g,"");
+                var contentInLowerCase = content.toLowerCase();
+                var articleUrl = decodeURIComponent(data.url);
+                var indexOfTitle = [];
+                var indexOfContent = [];
+                // only match articles with not empty titles
+                if(title != '') {
+                  keywords.forEach(function(keyword) {
+                    function getIndexByWord(word, text, caseSensitive) {
+                      var wordLen = word.length;
+                      if (wordLen === 0) {
+                        return [];
+                      }
+                      var startPosition = 0, position = [], index = [];
+                      if (!caseSensitive) {
+                        text = text.toLowerCase();
+                        word = word.toLowerCase();
+                      }
+                      while ((position = text.indexOf(word, startPosition)) > -1) {
+                        index.push({position: position, word: word});
+                        startPosition = position + wordLen;
+                      }
+                      return index;
+                    }
+
+                    indexOfTitle = indexOfTitle.concat(getIndexByWord(keyword, titleInLowerCase, false));
+                    indexOfContent = indexOfContent.concat(getIndexByWord(keyword, contentInLowerCase, false));
+                  });
+                  if (indexOfTitle.length > 0 || indexOfContent.length > 0) {
+                    isMatch = true;
+                    hitCount = indexOfTitle.length + indexOfContent.length;
+                  }
+                }
+
+                // show search results
+
+                if (isMatch) {
+                  // sort index by position of keyword
+
+                  [indexOfTitle, indexOfContent].forEach(function (index) {
+                    index.sort(function (itemLeft, itemRight) {
+                      if (itemRight.position !== itemLeft.position) {
+                        return itemRight.position - itemLeft.position;
+                      } else {
+                        return itemLeft.word.length - itemRight.word.length;
+                      }
+                    });
+                  });
+
+                  // merge hits into slices
+
+                  function mergeIntoSlice(text, start, end, index) {
+                    var item = index[index.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    var hits = [];
+                    var searchTextCountInSlice = 0;
+                    while (position + word.length <= end && index.length != 0) {
+                      if (word === searchText) {
+                        searchTextCountInSlice++;
+                      }
+                      hits.push({position: position, length: word.length});
+                      var wordEnd = position + word.length;
+
+                      // move to next position of hit
+
+                      index.pop();
+                      while (index.length != 0) {
+                        item = index[index.length - 1];
+                        position = item.position;
+                        word = item.word;
+                        if (wordEnd > position) {
+                          index.pop();
+                        } else {
+                          break;
+                        }
+                      }
+                    }
+                    searchTextCount += searchTextCountInSlice;
+                    return {
+                      hits: hits,
+                      start: start,
+                      end: end,
+                      searchTextCount: searchTextCountInSlice
+                    };
+                  }
+
+                  var slicesOfTitle = [];
+                  if (indexOfTitle.length != 0) {
+                    slicesOfTitle.push(mergeIntoSlice(title, 0, title.length, indexOfTitle));
+                  }
+
+                  var slicesOfContent = [];
+                  while (indexOfContent.length != 0) {
+                    var item = indexOfContent[indexOfContent.length - 1];
+                    var position = item.position;
+                    var word = item.word;
+                    // cut out 100 characters
+                    var start = position - 20;
+                    var end = position + 80;
+                    if(start < 0){
+                      start = 0;
+                    }
+                    if (end < position + word.length) {
+                      end = position + word.length;
+                    }
+                    if(end > content.length){
+                      end = content.length;
+                    }
+                    slicesOfContent.push(mergeIntoSlice(content, start, end, indexOfContent));
+                  }
+
+                  // sort slices in content by search text's count and hits' count
+
+                  slicesOfContent.sort(function (sliceLeft, sliceRight) {
+                    if (sliceLeft.searchTextCount !== sliceRight.searchTextCount) {
+                      return sliceRight.searchTextCount - sliceLeft.searchTextCount;
+                    } else if (sliceLeft.hits.length !== sliceRight.hits.length) {
+                      return sliceRight.hits.length - sliceLeft.hits.length;
+                    } else {
+                      return sliceLeft.start - sliceRight.start;
+                    }
+                  });
+
+                  // select top N slices in content
+
+                  var upperBound = parseInt('1');
+                  if (upperBound >= 0) {
+                    slicesOfContent = slicesOfContent.slice(0, upperBound);
+                  }
+
+                  // highlight title and content
+
+                  function highlightKeyword(text, slice) {
+                    var result = '';
+                    var prevEnd = slice.start;
+                    slice.hits.forEach(function (hit) {
+                      result += text.substring(prevEnd, hit.position);
+                      var end = hit.position + hit.length;
+                      result += '<b class="search-keyword">' + text.substring(hit.position, end) + '</b>';
+                      prevEnd = end;
+                    });
+                    result += text.substring(prevEnd, slice.end);
+                    return result;
+                  }
+
+                  var resultItem = '';
+
+                  if (slicesOfTitle.length != 0) {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + highlightKeyword(title, slicesOfTitle[0]) + "</a>";
+                  } else {
+                    resultItem += "<li><a href='" + articleUrl + "' class='search-result-title'>" + title + "</a>";
+                  }
+
+                  slicesOfContent.forEach(function (slice) {
+                    resultItem += "<a href='" + articleUrl + "'>" +
+                      "<p class=\"search-result\">" + highlightKeyword(content, slice) +
+                      "...</p>" + "</a>";
+                  });
+
+                  resultItem += "</li>";
+                  resultItems.push({
+                    item: resultItem,
+                    searchTextCount: searchTextCount,
+                    hitCount: hitCount,
+                    id: resultItems.length
+                  });
+                }
+              })
+            };
+            if (keywords.length === 1 && keywords[0] === "") {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-search fa-5x" /></div>'
+            } else if (resultItems.length === 0) {
+              resultContent.innerHTML = '<div id="no-result"><i class="fa fa-frown-o fa-5x" /></div>'
+            } else {
+              resultItems.sort(function (resultLeft, resultRight) {
+                if (resultLeft.searchTextCount !== resultRight.searchTextCount) {
+                  return resultRight.searchTextCount - resultLeft.searchTextCount;
+                } else if (resultLeft.hitCount !== resultRight.hitCount) {
+                  return resultRight.hitCount - resultLeft.hitCount;
+                } else {
+                  return resultRight.id - resultLeft.id;
+                }
+              });
+              var searchResultList = '<ul class=\"search-result-list\">';
+              resultItems.forEach(function (result) {
+                searchResultList += result.item;
+              })
+              searchResultList += "</ul>";
+              resultContent.innerHTML = searchResultList;
+            }
+          }
+
+          if ('auto' === 'auto') {
+            input.addEventListener('input', inputEventFunction);
+          } else {
+            $('.search-icon').click(inputEventFunction);
+            input.addEventListener('keypress', function (event) {
+              if (event.keyCode === 13) {
+                inputEventFunction();
+              }
+            });
+          }
+
+          // remove loading animation
+          $(".local-search-pop-overlay").remove();
+          $('body').css('overflow', '');
+
+          proceedsearch();
+        }
+      });
+    }
+
+    // handle and trigger popup window;
+    $('.popup-trigger').click(function(e) {
+      e.stopPropagation();
+      if (isfetched === false) {
+        searchFunc(path, 'local-search-input', 'local-search-result');
+      } else {
+        proceedsearch();
+      };
+    });
+
+    $('.popup-btn-close').click(onPopupClose);
+    $('.popup').click(function(e){
+      e.stopPropagation();
+    });
+    $(document).on('keyup', function (event) {
+      var shouldDismissSearchPopup = event.which === 27 &&
+        $('.search-popup').is(':visible');
+      if (shouldDismissSearchPopup) {
+        onPopupClose();
+      }
+    });
+  </script>
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
