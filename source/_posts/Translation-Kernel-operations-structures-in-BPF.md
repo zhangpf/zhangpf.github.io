@@ -60,12 +60,12 @@ The `data` field has the type of the structure to be replaced — `struct tcp
 <!-- The last step is to load this structure into the kernel. One might imagine a number of ways of doing this; the actual implementation is almost certainly something else. User space must create a special BPF map with the new `BPF_MAP_TYPE_STRUCT_OPS` type. Associated with this map is the BTF type ID of a special structure in the kernel (described below); that is how the map is connected with the structure that is to be replaced. Actually replacing the structure is accomplished by storing the `bpf_tcp_congestion_ops` structure filled in above into element zero of the map. It is also possible to query the map (to see the reference-count and state fields) or to remove the structure by deleting element zero. -->
 
 最后一步，是将该结构加载到内核中，有多种方式来达到该目的，因此实际的实现几乎可以肯定是另外的方式。
-用户空间必须使用新添加的`BPF_MAP_TYPE_STRUCT_OPS`类型创建一个特殊的BPF映射，与该映射相关联的是内核中特殊结构的BTF类型ID（如下所述），这就是将映射与要替换的结构连接在一起的方式。
-实际的结构替换是通过将上面的`bpf_tcp_congestion_ops`结构存储到零填充的映射中来完成的，此外还支持的操作包括：查询映射（以获取引用计数和状态字段）和通过删除元素0来删除结构。
+用户空间必须使用新添加的`BPF_MAP_TYPE_STRUCT_OPS`类型创建一个特殊的BPF map，与该map相关联的是内核中特殊结构的BTF类型ID（如下所述），这就是将map与要替换的结构连接在一起的方式。
+实际的结构替换是通过将上面的`bpf_tcp_congestion_ops`结构存储到零填充的map中来完成的，此外还支持的操作包括：查询map（以获取引用计数和状态字段）和通过删除元素0来删除结构。
 
 
 <!-- BPF maps have grown in features and capability over the years. Even so, this seems likely to be the first place where map operations have this kind of side effect elsewhere in the kernel. It is arguably not the most elegant of interfaces; most user-space developers will never see most of it, though, since it is, like most of the BPF API, hidden behind a set of macros and magic object-file sections in the `libbpf` library. -->
-近年来，BPF映射相关的功能和特性不断的出现，即便如此，这次添加的新功能似乎是映射操作首次在内核产生类似副作用的方法。
+近年来，BPF maps相关的功能和特性不断的出现，即便如此，这次添加的新功能似乎是map作首次在内核产生类似副作用的方法。
 也许本功能不是最优雅的接口，但大多数用户空间的开发者将永远看不到它背后的大部分细节，因为它就像其他大多数BPF的API一样，隐藏在`libbpf`库中的一系列宏和对象的背后。
 
 
