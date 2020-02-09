@@ -71,8 +71,6 @@
 
 
 
-  
-
 
   <link rel="alternate" href="/atom.xml" title="Wisdom from zhangpf" type="application/atom+xml" />
 
@@ -89,7 +87,7 @@
 <meta property="og:site_name" content="Wisdom from zhangpf">
 <meta property="og:description" content="Linux内核5.6版本的众多令人惊喜的功能之一是：TCP拥塞控制算法（congestion control algorithm）可作为用户空间的BPF(Berkeley Packet Filter)程序进行加载和执行。网络开发者Toke Høiland-Jørgensen将这项功能描述为“内核正向成为支持BPF运行时的微内核迈进(march towards becoming BPF runti">
 <meta property="og:locale" content="default">
-<meta property="og:updated_time" content="2020-02-08T15:21:27.437Z">
+<meta property="og:updated_time" content="2020-02-09T03:28:41.044Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="【译文】使用BPF控制内核的ops结构体">
 <meta name="twitter:description" content="Linux内核5.6版本的众多令人惊喜的功能之一是：TCP拥塞控制算法（congestion control algorithm）可作为用户空间的BPF(Berkeley Packet Filter)程序进行加载和执行。网络开发者Toke Høiland-Jørgensen将这项功能描述为“内核正向成为支持BPF运行时的微内核迈进(march towards becoming BPF runti">
@@ -395,9 +393,9 @@ The `data` field has the type of the structure to be replaced — `struct tcp_co
 -->
 <p>上面的代码中，<code>data</code>字段的类型是将要替换的结构——在拥塞控制中也就是<code>struct tcp_congestion_ops</code>，但是，此结构应包含已加载用于实现对应拥塞控制功能的程序的文件描述符，而非函数指针。尽管内核可以按如下所述覆盖内容，但也应根据需要设置该结构中的非函数字段。</p>
 <!-- The last step is to load this structure into the kernel. One might imagine a number of ways of doing this; the actual implementation is almost certainly something else. User space must create a special BPF map with the new `BPF_MAP_TYPE_STRUCT_OPS` type. Associated with this map is the BTF type ID of a special structure in the kernel (described below); that is how the map is connected with the structure that is to be replaced. Actually replacing the structure is accomplished by storing the `bpf_tcp_congestion_ops` structure filled in above into element zero of the map. It is also possible to query the map (to see the reference-count and state fields) or to remove the structure by deleting element zero. -->
-<p>最后一步，是将该结构加载到内核中，有多种方式来达到该目的，因此实际的实现几乎可以肯定是另外的方式。用户空间必须使用新添加的<code>BPF_MAP_TYPE_STRUCT_OPS</code>类型创建一个特殊的BPF映射，与该映射相关联的是内核中特殊结构的BTF类型ID（如下所述），这就是将映射与要替换的结构连接在一起的方式。实际的结构替换是通过将上面的<code>bpf_tcp_congestion_ops</code>结构存储到零填充的映射中来完成的，此外还支持的操作包括：查询映射（以获取引用计数和状态字段）和通过删除元素0来删除结构。</p>
+<p>最后一步，是将该结构加载到内核中，有多种方式来达到该目的，因此实际的实现几乎可以肯定是另外的方式。用户空间必须使用新添加的<code>BPF_MAP_TYPE_STRUCT_OPS</code>类型创建一个特殊的BPF map，与该map相关联的是内核中特殊结构的BTF类型ID（如下所述），这就是将map与要替换的结构连接在一起的方式。实际的结构替换是通过将上面的<code>bpf_tcp_congestion_ops</code>结构存储到零填充的map中来完成的，此外还支持的操作包括：查询map（以获取引用计数和状态字段）和通过删除元素0来删除结构。</p>
 <!-- BPF maps have grown in features and capability over the years. Even so, this seems likely to be the first place where map operations have this kind of side effect elsewhere in the kernel. It is arguably not the most elegant of interfaces; most user-space developers will never see most of it, though, since it is, like most of the BPF API, hidden behind a set of macros and magic object-file sections in the `libbpf` library. -->
-<p>近年来，BPF映射相关的功能和特性不断的出现，即便如此，这次添加的新功能似乎是映射操作首次在内核产生类似副作用的方法。也许本功能不是最优雅的接口，但大多数用户空间的开发者将永远看不到它背后的大部分细节，因为它就像其他大多数BPF的API一样，隐藏在<code>libbpf</code>库中的一系列宏和对象的背后。</p>
+<p>近年来，BPF maps相关的功能和特性不断的出现，即便如此，这次添加的新功能似乎是map作首次在内核产生类似副作用的方法。也许本功能不是最优雅的接口，但大多数用户空间的开发者将永远看不到它背后的大部分细节，因为它就像其他大多数BPF的API一样，隐藏在<code>libbpf</code>库中的一系列宏和对象的背后。</p>
 <!-- ## The kernel side -->
 <h2 id="内核空间"><a href="#内核空间" class="headerlink" title="内核空间"></a>内核空间</h2><!-- 
 Replacing an operations structure requires support in the kernel; there is no ability for user space to replace arbitrary structures at will. To make it possible to replace a specific type of structure, kernel code must create a structure like this: 
